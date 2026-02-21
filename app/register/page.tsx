@@ -109,7 +109,7 @@ export default function RegisterPage() {
       return
     }
 
-    const partner = store.addPartner({
+    const newPartner = store.addPartner({
       type: selectedType,
       mistaSubTypes: selectedType === "Mista" ? mistaSubTypes : undefined,
       companyName: values.companyName,
@@ -125,13 +125,15 @@ export default function RegisterPage() {
     })
 
     store.addLog({
-      userId: partner.id,
+      userId: newPartner.id,
       userType: "partner",
       action: "Registo",
       details: `Parceiro ${values.companyName} registado como ${PARTNER_TYPE_LABELS[selectedType]}`,
     })
 
-    login(values.loginEmail, values.password, [...store.state.partners, partner], store.state.admins)
+    // Use the updated partners list from localStorage (since store.state is stale in this closure)
+    const freshPartners = JSON.parse(localStorage.getItem("angotour_data") || "{}").partners || []
+    login(values.loginEmail, values.password, freshPartners, store.state.admins)
     toast.success("Registo realizado com sucesso!")
     router.push("/partner/documents")
   }

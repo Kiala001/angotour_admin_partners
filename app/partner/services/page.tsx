@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { useStore } from "@/lib/data/store"
@@ -26,7 +26,15 @@ const CATEGORIES = [
   "roteiros", "pacotes", "calendario", "avaliacoes", "atividades", "geral",
 ]
 
-export default function ServicesPage() {
+export default function ServicesPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-12"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>}>
+      <ServicesPage />
+    </Suspense>
+  )
+}
+
+function ServicesPage() {
   const { user } = useAuth()
   const store = useStore()
   const searchParams = useSearchParams()

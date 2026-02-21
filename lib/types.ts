@@ -17,6 +17,8 @@ export interface PartnerDocument {
   partnerId: string
   type: string
   fileName: string
+  fileData?: string // base64 data URL for localStorage persistence
+  fileSize?: number
   status: DocumentStatus
   uploadedAt: string
   reviewedBy?: string

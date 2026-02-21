@@ -20,6 +20,7 @@ interface PendingDoc {
   docId: string
   docType: string
   fileName: string
+  fileData?: string
   uploadedAt: string
   status: string
 }
@@ -39,6 +40,7 @@ export default function AdminDocumentsPage() {
       docId: d.id,
       docType: d.type,
       fileName: d.fileName,
+      fileData: d.fileData,
       uploadedAt: d.uploadedAt,
       status: d.status,
     }))
@@ -187,6 +189,22 @@ export default function AdminDocumentsPage() {
                   </p>
                 </div>
               </div>
+              {reviewDialog?.fileData && (
+                <div className="mt-3 flex items-center justify-center rounded border border-border bg-card p-2 min-h-[150px]">
+                  {reviewDialog.fileData.startsWith("data:application/pdf") ? (
+                    <a href={reviewDialog.fileData} download={reviewDialog.fileName} className="text-sm text-primary underline">
+                      Descarregar PDF
+                    </a>
+                  ) : (
+                    <img
+                      src={reviewDialog.fileData}
+                      alt={reviewDialog.fileName}
+                      className="max-h-[250px] max-w-full rounded object-contain"
+                      crossOrigin="anonymous"
+                    />
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-foreground">Nota (opcional)</label>

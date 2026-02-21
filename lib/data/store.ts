@@ -46,6 +46,7 @@ export interface StoreActions {
   blockPartner: (id: string, blocked: boolean) => void
   // Documents
   addDocument: (doc: Omit<PartnerDocument, "id" | "uploadedAt" | "status">) => void
+  updateDocument: (partnerId: string, docType: string, fileName: string, fileData?: string, fileSize?: number) => void
   reviewDocument: (docId: string, partnerId: string, status: "approved" | "rejected", note?: string, reviewerId?: string) => void
   // Plans
   addPlan: (p: Omit<Plan, "id">) => void
@@ -66,6 +67,7 @@ export interface StoreActions {
   addLog: (log: Omit<ActivityLog, "id" | "timestamp">) => void
   // Utility
   reload: () => void
+  resetStore: () => void
 }
 
 export function createActions(state: AppState, setState: (s: AppState) => void): StoreActions {
@@ -122,15 +124,56 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
       }
       const next = {
         ...state,
-        partners: state.partners.map((p) =>
-          p.id === doc.partnerId
-            ? {
-                ...p,
-                documents: [...p.documents, newDoc],
-                documentsStatus: "pending" as const,
-              }
-            : p
-        ),
+        partners: state.partners.map((p) => {
+          if (p.id !== doc.partnerId) return p
+          // Check if a document of this type already exists (resubmission)
+          const existingIdx = p.documents.findIndex((d) => d.type === doc.type)
+          if (existingIdx >= 0) {
+            const docs = [...p.documents]
+            docs[existingIdx] = {
+              ...docs[existingIdx],
+              fileName: doc.fileName,
+              fileData: doc.fileData,
+              fileSize: doc.fileSize,
+              status: "pending" as const,
+              uploadedAt: new Date().toISOString(),
+              reviewNote: undefined,
+              reviewedBy: undefined,
+            }
+            return { ...p, documents: docs, documentsStatus: "pending" as const }
+          }
+          return {
+            ...p,
+            documents: [...p.documents, newDoc],
+            documentsStatus: "pending" as const,
+          }
+        }),
+      }
+      save(next)
+    },
+
+    updateDocument: (partnerId, docType, fileName, fileData, fileSize) => {
+      const next = {
+        ...state,
+        partners: state.partners.map((p) => {
+          if (p.id !== partnerId) return p
+          const existingIdx = p.documents.findIndex((d) => d.type === docType)
+          if (existingIdx >= 0) {
+            const docs = [...p.documents]
+            docs[existingIdx] = {
+              ...docs[existingIdx],
+              fileName,
+              fileData,
+              fileSize,
+              status: "pending" as const,
+              uploadedAt: new Date().toISOString(),
+              reviewNote: undefined,
+              reviewedBy: undefined,
+            }
+            return { ...p, documents: docs, documentsStatus: "pending" as const }
+          }
+          return p
+        }),
       }
       save(next)
     },
@@ -242,6 +285,12 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
 
     reload: () => {
       setState(loadState())
+    },
+
+    resetStore: () => {
+      const initial = getInitialState()
+      saveState(initial)
+      setState(initial)
     },
   }
 }
