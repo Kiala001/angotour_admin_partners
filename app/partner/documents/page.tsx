@@ -54,7 +54,7 @@ function DocumentUploadCard({
           {existing ? (
             <p className="text-xs text-muted-foreground">{existing.fileName}</p>
           ) : (
-            <p className="text-xs text-muted-foreground">Nao enviado</p>
+            <p className="text-xs text-muted-foreground">Não enviado</p>
           )}
           {existing?.status === "rejected" && existing.reviewNote && (
             <p className="mt-1 text-xs text-destructive">Motivo: {existing.reviewNote}</p>

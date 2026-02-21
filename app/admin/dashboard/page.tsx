@@ -60,7 +60,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-foreground">{pendingDocs}</div>
-            <p className="text-xs text-muted-foreground">A aguardar aprovacao</p>
+            <p className="text-xs text-muted-foreground">A aguardar aprovação</p>
           </CardContent>
         </Card>
 
@@ -92,7 +92,7 @@ export default function AdminDashboard() {
           <CardContent className="flex items-center gap-3 py-4">
             <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
             <div>
-              <p className="text-sm font-medium text-amber-900">Accoes Pendentes</p>
+              <p className="text-sm font-medium text-amber-900">Acções Pendentes</p>
               <p className="text-xs text-amber-700">
                 {pendingDocs > 0 && `${pendingDocs} documento(s) pendente(s)`}
                 {pendingDocs > 0 && pendingReceipts > 0 && " | "}

@@ -40,11 +40,11 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-            <MapPin className="h-7 w-7 text-primary-foreground" />
+            <Label className="h-7 w-7 text-primary-foreground">A</Label>
           </div>
           <CardTitle className="text-2xl font-bold text-foreground">Angotour</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Acesse o painel de gestao
+            Acesse o painel de gestão
           </CardDescription>
         </CardHeader>
         <CardContent>

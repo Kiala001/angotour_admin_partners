@@ -220,12 +220,12 @@ export default function ServicesPage() {
               <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label className="text-foreground">Descricao</Label>
+              <Label className="text-foreground">Descrição</Label>
               <Textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} rows={3} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1.5">
-                <Label className="text-foreground">Preco (Kz)</Label>
+                <Label className="text-foreground">Preço (Kz)</Label>
                 <Input type="number" value={formData.price} onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })} />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -246,7 +246,7 @@ export default function ServicesPage() {
                 <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v as "service" | "product" })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="service">Servico</SelectItem>
+                    <SelectItem value="service">Serviço</SelectItem>
                     <SelectItem value="product">Produto</SelectItem>
                   </SelectContent>
                 </Select>
