@@ -141,7 +141,7 @@ export default function RegisterPage() {
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-            <Label className="h-6 w-6 text-primary-foreground">A</Label>
+            <MapPin className="h-6 w-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-xl font-bold text-foreground">Registar Parceiro</CardTitle>
           <CardDescription className="text-muted-foreground">
