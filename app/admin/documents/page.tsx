@@ -3,17 +3,17 @@
 import { useState } from "react"
 import { useStore } from "@/lib/data/store"
 import { PARTNER_TYPE_LABELS } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { FileText, CheckCircle2, XCircle, Search, Clock, AlertTriangle } from "lucide-react"
+import { FileText, CheckCircle2, XCircle, Search, AlertTriangle, Eye } from "lucide-react"
 import { toast } from "sonner"
 
-interface PendingDoc {
+interface DocRow {
   partnerId: string
   partnerName: string
   partnerType: string
@@ -21,18 +21,20 @@ interface PendingDoc {
   docType: string
   fileName: string
   fileData?: string
+  fileUrl?: string
   uploadedAt: string
   status: string
+  reviewNote?: string
 }
 
 export default function AdminDocumentsPage() {
   const store = useStore()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("pending")
-  const [reviewDialog, setReviewDialog] = useState<PendingDoc | null>(null)
+  const [reviewDialog, setReviewDialog] = useState<DocRow | null>(null)
   const [reviewNote, setReviewNote] = useState("")
 
-  const allDocs: PendingDoc[] = store.state.partners.flatMap((p) =>
+  const allDocs: DocRow[] = store.state.partners.flatMap((p) =>
     p.documents.map((d) => ({
       partnerId: p.id,
       partnerName: p.companyName,
@@ -41,8 +43,10 @@ export default function AdminDocumentsPage() {
       docType: d.type,
       fileName: d.fileName,
       fileData: d.fileData,
+      fileUrl: d.fileUrl,
       uploadedAt: d.uploadedAt,
       status: d.status,
+      reviewNote: d.reviewNote,
     }))
   )
 
@@ -65,10 +69,10 @@ export default function AdminDocumentsPage() {
     store.addLog({
       userId: "admin-1",
       userType: "admin",
-      action: status === "approved" ? "Documento aprovado" : "Documento rejeitado",
-      details: `${reviewDialog.docType} de ${reviewDialog.partnerName}${reviewNote ? ` - ${reviewNote}` : ""}`,
+      action: status === "approved" ? "Alvara aprovado" : "Alvara rejeitado",
+      details: `${reviewDialog.partnerName}${reviewNote ? ` - ${reviewNote}` : ""}`,
     })
-    toast.success(status === "approved" ? "Documento aprovado" : "Documento rejeitado")
+    toast.success(status === "approved" ? "Alvara aprovado com sucesso" : "Alvara rejeitado")
     setReviewDialog(null)
     setReviewNote("")
   }
@@ -76,8 +80,8 @@ export default function AdminDocumentsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Aprovacao de Documentos</h1>
-        <p className="text-muted-foreground">{pendingCount} documento(s) pendente(s) de aprovacao</p>
+        <h1 className="text-2xl font-bold text-foreground">Aprovacao de Alvaras</h1>
+        <p className="text-muted-foreground">{pendingCount} alvara(s) pendente(s) de aprovacao</p>
       </div>
 
       {pendingCount > 0 && (
@@ -85,7 +89,7 @@ export default function AdminDocumentsPage() {
           <CardContent className="flex items-center gap-3 py-4">
             <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0" />
             <p className="text-sm text-amber-900">
-              Existem <strong>{pendingCount}</strong> documento(s) a aguardar a sua revisao.
+              Existem <strong>{pendingCount}</strong> alvara(s) a aguardar a sua revisao.
             </p>
           </CardContent>
         </Card>
@@ -94,17 +98,10 @@ export default function AdminDocumentsPage() {
       <div className="flex flex-col gap-3 md:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Pesquisar por parceiro ou tipo de documento..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+          <Input placeholder="Pesquisar por parceiro..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full md:w-48">
-            <SelectValue placeholder="Estado" />
-          </SelectTrigger>
+          <SelectTrigger className="w-full md:w-48"><SelectValue placeholder="Estado" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
             <SelectItem value="pending">Pendentes</SelectItem>
@@ -119,7 +116,7 @@ export default function AdminDocumentsPage() {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <FileText className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground">
-              {statusFilter === "pending" ? "Nenhum documento pendente" : "Nenhum documento encontrado"}
+              {statusFilter === "pending" ? "Nenhum alvara pendente" : "Nenhum alvara encontrado"}
             </p>
           </CardContent>
         </Card>
@@ -133,13 +130,11 @@ export default function AdminDocumentsPage() {
                     <FileText className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <p className="font-medium text-foreground">{doc.docType}</p>
+                    <p className="font-medium text-foreground">{doc.partnerName}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{doc.partnerName}</span>
-                      <span>|</span>
                       <span>{doc.partnerType}</span>
                       <span>|</span>
-                      <span>{doc.fileName}</span>
+                      <span>Alvara: {doc.fileName}</span>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Enviado em {new Date(doc.uploadedAt).toLocaleDateString("pt-AO")}
@@ -147,22 +142,12 @@ export default function AdminDocumentsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge
-                    variant={
-                      doc.status === "approved"
-                        ? "default"
-                        : doc.status === "rejected"
-                        ? "destructive"
-                        : "secondary"
-                    }
-                  >
+                  <Badge variant={doc.status === "approved" ? "default" : doc.status === "rejected" ? "destructive" : "secondary"}>
                     {doc.status === "approved" ? "Aprovado" : doc.status === "rejected" ? "Rejeitado" : "Pendente"}
                   </Badge>
-                  {doc.status === "pending" && (
-                    <Button size="sm" variant="outline" onClick={() => setReviewDialog(doc)}>
-                      Rever
-                    </Button>
-                  )}
+                  <Button size="sm" variant="outline" onClick={() => { setReviewDialog(doc); setReviewNote("") }}>
+                    {doc.status === "pending" ? "Rever" : "Ver"}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -170,13 +155,12 @@ export default function AdminDocumentsPage() {
         </div>
       )}
 
+      {/* Review dialog */}
       <Dialog open={!!reviewDialog} onOpenChange={(open) => { if (!open) { setReviewDialog(null); setReviewNote("") } }}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Rever Documento</DialogTitle>
-            <DialogDescription>
-              {reviewDialog?.docType} de {reviewDialog?.partnerName}
-            </DialogDescription>
+            <DialogTitle className="text-foreground">Alvara - {reviewDialog?.partnerName}</DialogTitle>
+            <DialogDescription>{reviewDialog?.partnerType}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 py-4">
             <div className="rounded-lg border border-border p-4 bg-muted/30">
@@ -189,43 +173,47 @@ export default function AdminDocumentsPage() {
                   </p>
                 </div>
               </div>
-              {reviewDialog?.fileData && (
+              {/* File preview */}
+              {(reviewDialog?.fileData || reviewDialog?.fileUrl) && (
                 <div className="mt-3 flex items-center justify-center rounded border border-border bg-card p-2 min-h-[150px]">
-                  {reviewDialog.fileData.startsWith("data:application/pdf") ? (
-                    <a href={reviewDialog.fileData} download={reviewDialog.fileName} className="text-sm text-primary underline">
-                      Descarregar PDF
+                  {reviewDialog.fileData?.startsWith("data:application/pdf") ? (
+                    <a href={reviewDialog.fileData} download={reviewDialog.fileName} className="flex items-center gap-2 text-sm text-primary underline">
+                      <Eye className="h-4 w-4" /> Descarregar PDF
                     </a>
-                  ) : (
-                    <img
-                      src={reviewDialog.fileData}
-                      alt={reviewDialog.fileName}
-                      className="max-h-[250px] max-w-full rounded object-contain"
-                      crossOrigin="anonymous"
-                    />
-                  )}
+                  ) : reviewDialog.fileData ? (
+                    <img src={reviewDialog.fileData} alt="Alvara" className="max-h-[250px] max-w-full rounded object-contain" crossOrigin="anonymous" />
+                  ) : reviewDialog.fileUrl ? (
+                    <a href={reviewDialog.fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-primary underline">
+                      <Eye className="h-4 w-4" /> Abrir ficheiro
+                    </a>
+                  ) : null}
                 </div>
               )}
             </div>
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-foreground">Nota (opcional)</label>
-              <Textarea
-                placeholder="Adicione uma nota sobre a revisao..."
-                value={reviewNote}
-                onChange={(e) => setReviewNote(e.target.value)}
-                rows={3}
-              />
-            </div>
+
+            {reviewDialog?.status === "rejected" && reviewDialog.reviewNote && (
+              <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+                <strong>Nota anterior:</strong> {reviewDialog.reviewNote}
+              </div>
+            )}
+
+            {reviewDialog?.status === "pending" && (
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-foreground">Nota (opcional)</label>
+                <Textarea placeholder="Adicione uma nota sobre a revisao..." value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} rows={3} />
+              </div>
+            )}
           </div>
-          <DialogFooter className="flex gap-2">
-            <Button variant="destructive" onClick={() => handleReview("rejected")} className="flex items-center gap-2">
-              <XCircle className="h-4 w-4" />
-              Rejeitar
-            </Button>
-            <Button onClick={() => handleReview("approved")} className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4" />
-              Aprovar
-            </Button>
-          </DialogFooter>
+          {reviewDialog?.status === "pending" && (
+            <DialogFooter className="flex gap-2">
+              <Button variant="destructive" onClick={() => handleReview("rejected")} className="flex items-center gap-2">
+                <XCircle className="h-4 w-4" /> Rejeitar
+              </Button>
+              <Button onClick={() => handleReview("approved")} className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" /> Aprovar
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </div>

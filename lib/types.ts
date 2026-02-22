@@ -15,9 +15,10 @@ export type SubscriptionStatus = "pending" | "approved" | "rejected"
 export interface PartnerDocument {
   id: string
   partnerId: string
-  type: string
+  type: string // Always "Alvara" now
   fileName: string
-  fileData?: string // base64 data URL for localStorage persistence
+  fileData?: string // base64 data URL for preview (small files)
+  fileUrl?: string  // server-stored file path
   fileSize?: number
   status: DocumentStatus
   uploadedAt: string
@@ -64,6 +65,7 @@ export interface PlanSubscription {
   partnerId: string
   planId: string
   receiptFileName: string
+  receiptUrl?: string
   status: SubscriptionStatus
   startDate?: string
   expiresAt?: string
@@ -132,33 +134,11 @@ export const PARTNER_TYPE_LABELS: Record<PartnerType, string> = {
   Mista: "Mista",
 }
 
-export const REQUIRED_DOCUMENTS: Record<Exclude<PartnerType, "Mista">, string[]> = {
-  Hotel: ["Alvara", "Licenca de Funcionamento", "Licenca de Turismo", "Certificado de Seguranca"],
-  Restaurante: ["Alvara", "Licenca de Funcionamento", "Licenca Sanitaria"],
-  Bar: ["Alvara", "Licenca de Funcionamento", "Licenca de Bebidas Alcoolicas"],
-  Geladaria: ["Alvara", "Licenca de Funcionamento", "Licenca Sanitaria"],
-  Resort: ["Alvara", "Licenca de Funcionamento", "Licenca de Turismo", "Licenca Ambiental"],
-  Cafeteria: ["Alvara", "Licenca de Funcionamento", "Licenca Sanitaria"],
-  RentACar: ["Alvara", "Licenca de Funcionamento", "Licenca de Transporte", "Seguro de Frota"],
-  GuiaTuristico: ["Carteira Profissional", "Certificado de Guia", "Seguro de Responsabilidade Civil"],
-}
+// All partner types only need Alvara
+export const REQUIRED_DOCUMENT = "Alvara"
 
-export function getRequiredDocuments(type: PartnerType, mistaSubTypes?: PartnerType[]): string[] {
-  if (type === "Mista" && mistaSubTypes) {
-    const docs = new Set<string>()
-    for (const st of mistaSubTypes) {
-      if (st !== "Mista") {
-        for (const d of REQUIRED_DOCUMENTS[st]) {
-          docs.add(d)
-        }
-      }
-    }
-    return Array.from(docs)
-  }
-  if (type !== "Mista") {
-    return REQUIRED_DOCUMENTS[type]
-  }
-  return []
+export function getRequiredDocuments(): string[] {
+  return [REQUIRED_DOCUMENT]
 }
 
 export const PROVINCES = [

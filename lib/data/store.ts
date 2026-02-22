@@ -31,6 +31,14 @@ export function loadState(): AppState {
 export function saveState(state: AppState) {
   if (typeof window === "undefined") return
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+  // Also persist to JSON file on server
+  fetch("/api/data", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(state),
+  }).catch(() => {
+    // silent - localStorage is our primary store
+  })
 }
 
 function genId(prefix: string) {
@@ -42,11 +50,11 @@ export interface StoreActions {
   // Partners
   addPartner: (p: Omit<Partner, "id" | "createdAt" | "documents" | "documentsStatus" | "licenseType" | "licenseExpiry" | "blocked">) => Partner
   updatePartner: (id: string, data: Partial<Partner>) => void
+  deletePartner: (id: string) => void
   getPartner: (id: string) => Partner | undefined
   blockPartner: (id: string, blocked: boolean) => void
   // Documents
   addDocument: (doc: Omit<PartnerDocument, "id" | "uploadedAt" | "status">) => void
-  updateDocument: (partnerId: string, docType: string, fileName: string, fileData?: string, fileSize?: number) => void
   reviewDocument: (docId: string, partnerId: string, status: "approved" | "rejected", note?: string, reviewerId?: string) => void
   // Plans
   addPlan: (p: Omit<Plan, "id">) => void
@@ -55,6 +63,8 @@ export interface StoreActions {
   // Subscriptions
   addSubscription: (s: Omit<PlanSubscription, "id" | "createdAt" | "status">) => void
   reviewSubscription: (id: string, status: "approved" | "rejected", note?: string, reviewerId?: string) => void
+  cancelSubscription: (partnerId: string) => void
+  switchPlan: (partnerId: string, newPlanId: string, receiptFileName: string, receiptUrl?: string) => void
   // Payment Methods
   addPaymentMethod: (pm: Omit<PaymentMethod, "id">) => void
   updatePaymentMethod: (id: string, data: Partial<PaymentMethod>) => void
@@ -79,6 +89,7 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
   return {
     state,
 
+    // === PARTNERS ===
     addPartner: (data) => {
       const trialExpiry = new Date()
       trialExpiry.setDate(trialExpiry.getDate() + 30)
@@ -105,6 +116,16 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
       save(next)
     },
 
+    deletePartner: (id) => {
+      const next = {
+        ...state,
+        partners: state.partners.filter((p) => p.id !== id),
+        services: state.services.filter((s) => s.partnerId !== id),
+        subscriptions: state.subscriptions.filter((s) => s.partnerId !== id),
+      }
+      save(next)
+    },
+
     getPartner: (id) => state.partners.find((p) => p.id === id),
 
     blockPartner: (id, blocked) => {
@@ -115,6 +136,7 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
       save(next)
     },
 
+    // === DOCUMENTS ===
     addDocument: (doc) => {
       const newDoc: PartnerDocument = {
         ...doc,
@@ -126,7 +148,7 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
         ...state,
         partners: state.partners.map((p) => {
           if (p.id !== doc.partnerId) return p
-          // Check if a document of this type already exists (resubmission)
+          // If doc of same type exists, replace it (resubmission)
           const existingIdx = p.documents.findIndex((d) => d.type === doc.type)
           if (existingIdx >= 0) {
             const docs = [...p.documents]
@@ -152,32 +174,6 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
       save(next)
     },
 
-    updateDocument: (partnerId, docType, fileName, fileData, fileSize) => {
-      const next = {
-        ...state,
-        partners: state.partners.map((p) => {
-          if (p.id !== partnerId) return p
-          const existingIdx = p.documents.findIndex((d) => d.type === docType)
-          if (existingIdx >= 0) {
-            const docs = [...p.documents]
-            docs[existingIdx] = {
-              ...docs[existingIdx],
-              fileName,
-              fileData,
-              fileSize,
-              status: "pending" as const,
-              uploadedAt: new Date().toISOString(),
-              reviewNote: undefined,
-              reviewedBy: undefined,
-            }
-            return { ...p, documents: docs, documentsStatus: "pending" as const }
-          }
-          return p
-        }),
-      }
-      save(next)
-    },
-
     reviewDocument: (docId, partnerId, status, note, reviewerId) => {
       const next = {
         ...state,
@@ -198,6 +194,7 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
       save(next)
     },
 
+    // === PLANS ===
     addPlan: (data) => {
       const plan: Plan = { ...data, id: genId("plan") }
       save({ ...state, plans: [...state.plans, plan] })
@@ -211,6 +208,7 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
       save({ ...state, plans: state.plans.filter((p) => p.id !== id) })
     },
 
+    // === SUBSCRIPTIONS ===
     addSubscription: (data) => {
       const sub: PlanSubscription = {
         ...data,
@@ -234,7 +232,8 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
             expires.setDate(expires.getDate() + plan.durationDays)
             updated.startDate = start.toISOString()
             updated.expiresAt = expires.toISOString()
-            next.partners = next.partners.map((p) =>
+            // Activate partner license
+            next.partners = (next.partners || state.partners).map((p) =>
               p.id === s.partnerId
                 ? { ...p, licenseType: "paid" as const, licenseExpiry: expires.toISOString(), planId: plan.id, blocked: false }
                 : p
@@ -246,6 +245,40 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
       save(next)
     },
 
+    cancelSubscription: (partnerId) => {
+      const partner = state.partners.find((p) => p.id === partnerId)
+      if (!partner) return
+
+      // Revert partner to free trial with remaining time or expired
+      const next = {
+        ...state,
+        partners: state.partners.map((p) => {
+          if (p.id !== partnerId) return p
+          return {
+            ...p,
+            licenseType: "free_trial" as const,
+            planId: undefined,
+          }
+        }),
+      }
+      save(next)
+    },
+
+    switchPlan: (partnerId, newPlanId, receiptFileName, receiptUrl) => {
+      // Cancel current and create new subscription request
+      const sub: PlanSubscription = {
+        id: genId("sub"),
+        partnerId,
+        planId: newPlanId,
+        receiptFileName,
+        receiptUrl,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      }
+      save({ ...state, subscriptions: [...state.subscriptions, sub] })
+    },
+
+    // === PAYMENT METHODS ===
     addPaymentMethod: (data) => {
       save({ ...state, paymentMethods: [...state.paymentMethods, { ...data, id: genId("pm") }] })
     },
@@ -261,6 +294,7 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
       save({ ...state, paymentMethods: state.paymentMethods.filter((pm) => pm.id !== id) })
     },
 
+    // === SERVICES ===
     addService: (data) => {
       save({
         ...state,
@@ -276,6 +310,7 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
       save({ ...state, services: state.services.filter((s) => s.id !== id) })
     },
 
+    // === LOGS ===
     addLog: (data) => {
       save({
         ...state,
@@ -283,6 +318,7 @@ export function createActions(state: AppState, setState: (s: AppState) => void):
       })
     },
 
+    // === UTILITY ===
     reload: () => {
       setState(loadState())
     },

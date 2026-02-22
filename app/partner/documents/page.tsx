@@ -3,12 +3,12 @@
 import { useRef, useState, useCallback } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { useStore } from "@/lib/data/store"
-import { getRequiredDocuments } from "@/lib/types"
+import { REQUIRED_DOCUMENT } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Upload, CheckCircle2, XCircle, Clock, FileText, AlertTriangle, Info, Eye } from "lucide-react"
+import { Upload, CheckCircle2, XCircle, Clock, FileText, AlertTriangle, Info, Eye, ShieldCheck } from "lucide-react"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog"
@@ -20,164 +20,15 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024
 const ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"]
-
-function DocumentUploadCard({
-  docType,
-  existing,
-  onUpload,
-  onPreview,
-  uploading,
-}: {
-  docType: string
-  existing?: { id: string; fileName: string; fileData?: string; fileSize?: number; status: string; reviewNote?: string; uploadedAt: string }
-  onUpload: (docType: string, file: File) => void
-  onPreview: (doc: { fileName: string; fileData?: string }) => void
-  uploading: boolean
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (!ACCEPTED_TYPES.includes(file.type)) {
-      toast.error("Formato nao suportado. Use PDF, JPG ou PNG.")
-      return
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      toast.error("Ficheiro demasiado grande. Maximo 5MB.")
-      return
-    }
-
-    onUpload(docType, file)
-    // Reset input so same file can be re-selected
-    if (inputRef.current) inputRef.current.value = ""
-  }
-
-  const statusIcon = existing?.status === "approved"
-    ? <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
-    : existing?.status === "rejected"
-    ? <XCircle className="h-5 w-5 text-destructive flex-shrink-0" />
-    : existing
-    ? <Clock className="h-5 w-5 text-amber-500 flex-shrink-0" />
-    : <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-
-  const statusBadge = existing?.status === "approved"
-    ? <Badge variant="default">Aprovado</Badge>
-    : existing?.status === "rejected"
-    ? <Badge variant="destructive">Rejeitado</Badge>
-    : existing
-    ? <Badge variant="secondary">Pendente</Badge>
-    : <Badge variant="outline">Nao enviado</Badge>
-
-  const canUpload = !existing || existing.status === "rejected"
-  const canResubmit = existing?.status === "rejected"
-
-  return (
-    <div className={`flex flex-col gap-3 rounded-lg border p-4 transition-colors ${
-      !existing ? "border-dashed border-muted-foreground/30 bg-muted/30" :
-      existing.status === "rejected" ? "border-destructive/30 bg-destructive/5" :
-      existing.status === "approved" ? "border-primary/30 bg-primary/5" :
-      "border-border bg-card"
-    }`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          {statusIcon}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground">{docType}</p>
-            {existing ? (
-              <div className="flex flex-col gap-0.5 mt-0.5">
-                <p className="text-xs text-muted-foreground truncate">{existing.fileName}</p>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {existing.fileSize && <span>{formatFileSize(existing.fileSize)}</span>}
-                  <span>Enviado em {new Date(existing.uploadedAt).toLocaleDateString("pt-AO")}</span>
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Formatos aceites: PDF, JPG, PNG (max. 5MB)
-              </p>
-            )}
-            {existing?.status === "rejected" && existing.reviewNote && (
-              <div className="mt-2 flex items-start gap-1.5 rounded bg-destructive/10 p-2">
-                <AlertTriangle className="h-3.5 w-3.5 text-destructive mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-destructive">
-                  <span className="font-medium">Motivo da rejeicao:</span> {existing.reviewNote}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {statusBadge}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        {existing?.fileData && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onPreview({ fileName: existing.fileName, fileData: existing.fileData })}
-          >
-            <Eye className="mr-1.5 h-3.5 w-3.5" />
-            Visualizar
-          </Button>
-        )}
-        {canUpload && (
-          <>
-            <input
-              ref={inputRef}
-              type="file"
-              className="hidden"
-              accept=".pdf,.jpg,.jpeg,.png"
-              onChange={handleFile}
-            />
-            <Button
-              size="sm"
-              variant={canResubmit ? "destructive" : "default"}
-              onClick={() => inputRef.current?.click()}
-              disabled={uploading}
-            >
-              <Upload className="mr-1.5 h-3.5 w-3.5" />
-              {uploading ? "Enviando..." : canResubmit ? "Reenviar" : "Enviar Documento"}
-            </Button>
-          </>
-        )}
-        {existing?.status === "approved" && (
-          <p className="text-xs text-primary font-medium flex items-center gap-1">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            Aprovado
-          </p>
-        )}
-        {existing?.status === "pending" && (
-          <p className="text-xs text-amber-600 font-medium flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5" />
-            Aguardando revisao
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
 
 export default function DocumentsPage() {
   const { user } = useAuth()
   const store = useStore()
   const [uploading, setUploading] = useState(false)
-  const [previewDoc, setPreviewDoc] = useState<{ fileName: string; fileData?: string } | null>(null)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const partner = store.state.partners.find((p) => p.id === user?.id)
 
@@ -185,196 +36,295 @@ export default function DocumentsPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <FileText className="h-16 w-16 text-muted-foreground" />
-        <p className="text-muted-foreground text-center">
-          A carregar dados do parceiro...
-        </p>
+        <p className="text-muted-foreground text-center">A carregar dados do parceiro...</p>
       </div>
     )
   }
 
-  const requiredDocs = getRequiredDocuments(partner.type, partner.mistaSubTypes)
+  const alvara = partner.documents.find((d) => d.type === REQUIRED_DOCUMENT)
+  const hasAlvara = !!alvara
+  const isApproved = alvara?.status === "approved"
+  const isRejected = alvara?.status === "rejected"
+  const isPending = alvara?.status === "pending"
+  const canUpload = !hasAlvara || isRejected
 
-  const handleUpload = useCallback(async (docType: string, file: File) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!ACCEPTED_TYPES.includes(file.type)) {
+      toast.error("Formato nao suportado. Use PDF, JPG ou PNG.")
+      return
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("Ficheiro demasiado grande. Maximo 5MB.")
+      return
+    }
+    handleUpload(file)
+    if (inputRef.current) inputRef.current.value = ""
+  }
+
+  const handleUpload = useCallback(async (file: File) => {
+    if (!partner) return
     setUploading(true)
     try {
-      const fileData = await fileToBase64(file)
-      const fileName = file.name
-      const fileSize = file.size
+      // Upload via API
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("partnerId", partner.id)
+      formData.append("docType", REQUIRED_DOCUMENT)
+      const res = await fetch("/api/upload", { method: "POST", body: formData })
+      const data = await res.json()
 
-      // Check if document of this type already exists
-      const existingDoc = partner.documents.find((d) => d.type === docType)
-      if (existingDoc) {
-        store.updateDocument(partner.id, docType, fileName, fileData, fileSize)
-      } else {
-        store.addDocument({
-          partnerId: partner.id,
-          type: docType,
-          fileName,
-          fileData,
-          fileSize,
-        })
+      if (!res.ok) {
+        toast.error(data.error || "Erro ao enviar ficheiro")
+        return
       }
 
-      store.addLog({
-        userId: partner.id,
-        userType: "partner",
-        action: existingDoc ? "Documento reenviado" : "Documento enviado",
-        details: `Documento "${docType}" enviado: ${fileName} (${formatFileSize(fileSize)})`,
-      })
+      // Also read as base64 for immediate preview
+      const reader = new FileReader()
+      reader.onload = () => {
+        const fileData = reader.result as string
+        store.addDocument({
+          partnerId: partner.id,
+          type: REQUIRED_DOCUMENT,
+          fileName: data.fileName,
+          fileData,
+          fileUrl: data.fileUrl,
+          fileSize: data.fileSize,
+        })
 
-      toast.success(`Documento "${docType}" enviado com sucesso!`)
+        store.addLog({
+          userId: partner.id,
+          userType: "partner",
+          action: alvara ? "Alvara reenviado" : "Alvara enviado",
+          details: `Ficheiro: ${data.fileName} (${formatFileSize(data.fileSize)})`,
+        })
+
+        toast.success("Alvara enviado com sucesso! Aguarde a aprovacao.")
+      }
+      reader.readAsDataURL(file)
     } catch {
       toast.error("Erro ao processar o ficheiro. Tente novamente.")
     } finally {
       setUploading(false)
     }
-  }, [partner, store])
-
-  const uploadedCount = partner.documents.length
-  const approvedCount = partner.documents.filter((d) => d.status === "approved").length
-  const pendingCount = partner.documents.filter((d) => d.status === "pending").length
-  const rejectedCount = partner.documents.filter((d) => d.status === "rejected").length
-  const totalRequired = requiredDocs.length
-  const allUploaded = uploadedCount >= totalRequired
-  const allApproved = approvedCount >= totalRequired && totalRequired > 0
+  }, [partner, store, alvara])
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Documentos</h1>
+        <h1 className="text-2xl font-bold text-foreground">Documento - Alvara</h1>
         <p className="text-muted-foreground">
-          Envie os documentos necessarios para a aprovacao do seu estabelecimento
+          Submeta o Alvara comercial do seu estabelecimento para verificacao
         </p>
       </div>
 
-      {/* Guidance alert for new partners */}
-      {uploadedCount === 0 && (
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertTitle>Bem-vindo ao Angotour!</AlertTitle>
-          <AlertDescription>
-            Para activar o seu estabelecimento na plataforma, precisa enviar os documentos listados abaixo.
-            Cada documento sera analisado pela nossa equipa. Pode enviar ficheiros em formato PDF, JPG ou PNG (maximo 5MB cada).
+      {/* Welcome guide for new partners */}
+      {!hasAlvara && (
+        <Alert className="border-primary/30 bg-primary/5">
+          <Info className="h-4 w-4 text-primary" />
+          <AlertTitle className="text-foreground">Bem-vindo ao Angotour!</AlertTitle>
+          <AlertDescription className="text-muted-foreground">
+            Para activar o seu estabelecimento na plataforma, precisa enviar o seu <strong>Alvara Comercial</strong>.
+            Este documento sera analisado pela nossa equipa. Formatos aceites: PDF, JPG ou PNG (maximo 5MB).
           </AlertDescription>
         </Alert>
       )}
 
-      {rejectedCount > 0 && (
+      {isRejected && alvara?.reviewNote && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>{rejectedCount} documento(s) rejeitado(s)</AlertTitle>
+          <AlertTitle>Alvara rejeitado</AlertTitle>
           <AlertDescription>
-            Alguns documentos foram rejeitados. Verifique o motivo e reenvie os documentos corrigidos.
+            <strong>Motivo:</strong> {alvara.reviewNote}
+            <br />
+            Por favor corrija e reenvie o documento.
           </AlertDescription>
         </Alert>
       )}
 
-      {allApproved && (
-        <Alert>
-          <CheckCircle2 className="h-4 w-4" />
-          <AlertTitle>Todos os documentos aprovados!</AlertTitle>
-          <AlertDescription>
-            O seu estabelecimento esta verificado. Pode agora adicionar os seus servicos e produtos.
+      {isApproved && (
+        <Alert className="border-primary/30 bg-primary/5">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          <AlertTitle className="text-foreground">Alvara aprovado!</AlertTitle>
+          <AlertDescription className="text-muted-foreground">
+            O seu estabelecimento esta verificado. Pode agora adicionar os seus servicos e produtos,
+            e subscrever um plano para manter a sua presenca na plataforma.
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Progress card */}
+      {/* Main document card */}
+      <Card className={
+        isApproved ? "border-primary/40" :
+        isRejected ? "border-destructive/40" :
+        isPending ? "border-amber-300" :
+        "border-dashed border-muted-foreground/30"
+      }>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${
+                isApproved ? "bg-primary/10" :
+                isRejected ? "bg-destructive/10" :
+                isPending ? "bg-amber-100" :
+                "bg-muted"
+              }`}>
+                {isApproved ? <CheckCircle2 className="h-6 w-6 text-primary" /> :
+                 isRejected ? <XCircle className="h-6 w-6 text-destructive" /> :
+                 isPending ? <Clock className="h-6 w-6 text-amber-600" /> :
+                 <FileText className="h-6 w-6 text-muted-foreground" />}
+              </div>
+              <div>
+                <CardTitle className="text-foreground">Alvara Comercial</CardTitle>
+                <CardDescription>
+                  {isApproved ? "Documento verificado e aprovado" :
+                   isRejected ? "Documento rejeitado - reenvie corrigido" :
+                   isPending ? "Documento em analise pela equipa" :
+                   "Documento obrigatorio para activacao"}
+                </CardDescription>
+              </div>
+            </div>
+            <Badge variant={
+              isApproved ? "default" :
+              isRejected ? "destructive" :
+              isPending ? "secondary" :
+              "outline"
+            }>
+              {isApproved ? "Aprovado" :
+               isRejected ? "Rejeitado" :
+               isPending ? "Em Analise" :
+               "Nao Enviado"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {/* Show existing file info */}
+          {alvara && (
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 p-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <FileText className="h-5 w-5 text-primary flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{alvara.fileName}</p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {alvara.fileSize && <span>{formatFileSize(alvara.fileSize)}</span>}
+                    <span>Enviado em {new Date(alvara.uploadedAt).toLocaleDateString("pt-AO")}</span>
+                  </div>
+                </div>
+              </div>
+              {(alvara.fileData || alvara.fileUrl) && (
+                <Button size="sm" variant="outline" onClick={() => setPreviewOpen(true)}>
+                  <Eye className="mr-1.5 h-3.5 w-3.5" />
+                  Ver
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/* Upload section */}
+          {canUpload && (
+            <div className="flex flex-col items-center gap-4 rounded-lg border-2 border-dashed border-muted-foreground/20 bg-muted/20 p-8">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                <Upload className="h-8 w-8 text-primary" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-foreground">
+                  {isRejected ? "Reenviar Alvara corrigido" : "Enviar Alvara Comercial"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  PDF, JPG ou PNG | Maximo 5MB
+                </p>
+              </div>
+              <input
+                ref={inputRef}
+                type="file"
+                className="hidden"
+                accept=".pdf,.jpg,.jpeg,.png"
+                onChange={handleFileSelect}
+              />
+              <Button
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading}
+                size="lg"
+                variant={isRejected ? "destructive" : "default"}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                {uploading ? "Enviando..." : isRejected ? "Reenviar Documento" : "Selecionar Ficheiro"}
+              </Button>
+            </div>
+          )}
+
+          {isPending && (
+            <div className="flex items-center gap-3 rounded-lg bg-amber-50 border border-amber-200 p-4">
+              <Clock className="h-5 w-5 text-amber-600 flex-shrink-0" />
+              <p className="text-sm text-amber-900">
+                O seu Alvara foi enviado com sucesso e esta a ser analisado pela equipa Angotour.
+                Sera notificado assim que a revisao estiver concluida.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Info card about the process */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-foreground">Progresso da Documentacao</CardTitle>
-          <CardDescription>
-            {approvedCount} de {totalRequired} aprovado(s) | {uploadedCount} enviado(s) | {pendingCount} pendente(s)
-          </CardDescription>
+          <CardTitle className="text-sm font-medium text-foreground">Como funciona?</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all duration-500"
-              style={{ width: `${totalRequired > 0 ? (approvedCount / totalRequired) * 100 : 0}%` }}
-            />
-          </div>
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <div className="h-2.5 w-2.5 rounded-full bg-primary" />
-              <span>Aprovados ({approvedCount})</span>
+        <CardContent>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold flex-shrink-0">1</div>
+              <p className="text-sm text-muted-foreground">Envie o Alvara Comercial do seu estabelecimento</p>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-              <span>Pendentes ({pendingCount})</span>
+            <div className="flex items-start gap-3">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold flex-shrink-0">2</div>
+              <p className="text-sm text-muted-foreground">A equipa Angotour analisa e aprova o documento</p>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="h-2.5 w-2.5 rounded-full bg-destructive" />
-              <span>Rejeitados ({rejectedCount})</span>
+            <div className="flex items-start gap-3">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold flex-shrink-0">3</div>
+              <p className="text-sm text-muted-foreground">Apos aprovacao, adicione os seus servicos e produtos</p>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="h-2.5 w-2.5 rounded-full bg-muted-foreground/30" />
-              <span>Nao enviados ({totalRequired - uploadedCount > 0 ? totalRequired - uploadedCount : 0})</span>
+            <div className="flex items-start gap-3">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold flex-shrink-0">4</div>
+              <p className="text-sm text-muted-foreground">Subscreva um plano para manter a visibilidade na plataforma</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Document list */}
-      <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-medium text-muted-foreground">
-          Documentos Obrigatorios ({totalRequired})
-        </h3>
-        {requiredDocs.map((docType) => {
-          const existing = partner.documents.find((d) => d.type === docType)
-          return (
-            <DocumentUploadCard
-              key={docType}
-              docType={docType}
-              existing={existing}
-              onUpload={handleUpload}
-              onPreview={setPreviewDoc}
-              uploading={uploading}
-            />
-          )
-        })}
-      </div>
-
-      {allUploaded && !allApproved && (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="flex items-center gap-3 py-4">
-            <Clock className="h-5 w-5 text-amber-600 flex-shrink-0" />
-            <p className="text-sm text-amber-900">
-              Todos os documentos foram enviados. Aguarde a revisao pela equipa Angotour.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Preview dialog */}
-      <Dialog open={!!previewDoc} onOpenChange={(open) => { if (!open) setPreviewDoc(null) }}>
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Visualizar Documento</DialogTitle>
-            <DialogDescription>{previewDoc?.fileName}</DialogDescription>
+            <DialogTitle className="text-foreground">Alvara Comercial</DialogTitle>
+            <DialogDescription>{alvara?.fileName}</DialogDescription>
           </DialogHeader>
           <div className="flex items-center justify-center rounded-lg border border-border bg-muted/30 p-4 min-h-[300px]">
-            {previewDoc?.fileData ? (
-              previewDoc.fileData.startsWith("data:application/pdf") ? (
+            {alvara?.fileData ? (
+              alvara.fileData.startsWith("data:application/pdf") ? (
                 <div className="flex flex-col items-center gap-3">
                   <FileText className="h-16 w-16 text-primary" />
-                  <p className="text-sm text-muted-foreground">Pre-visualizacao de PDF</p>
-                  <a
-                    href={previewDoc.fileData}
-                    download={previewDoc.fileName}
-                    className="text-sm text-primary underline"
-                  >
+                  <p className="text-sm text-muted-foreground">Documento PDF</p>
+                  <a href={alvara.fileData} download={alvara.fileName} className="text-sm text-primary underline">
                     Descarregar PDF
                   </a>
                 </div>
               ) : (
                 <img
-                  src={previewDoc.fileData}
-                  alt={previewDoc.fileName}
+                  src={alvara.fileData}
+                  alt="Alvara Comercial"
                   className="max-h-[500px] max-w-full rounded object-contain"
                   crossOrigin="anonymous"
                 />
               )
+            ) : alvara?.fileUrl ? (
+              <div className="flex flex-col items-center gap-3">
+                <FileText className="h-16 w-16 text-primary" />
+                <a href={alvara.fileUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline">
+                  Abrir ficheiro
+                </a>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">Sem pre-visualizacao disponivel</p>
             )}
