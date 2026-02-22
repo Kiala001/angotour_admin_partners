@@ -1,8 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
-import { useStore } from "@/lib/data/store"
 import { PARTNER_TYPE_LABELS, PROVINCES } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,40 +9,143 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Save, Clock } from "lucide-react"
 import { toast } from "sonner"
+import type { Partner, ActivityLog } from "@/lib/types"
+
+interface ProfileForm {
+  companyName: string
+  phone: string
+  email: string
+  province: string
+  city: string
+  bairro: string
+  rua: string
+}
 
 export default function ProfilePage() {
   const { user } = useAuth()
-  const store = useStore()
-
-  const partner = store.state.partners.find((p) => p.id === user?.id)
-  if (!partner) return null
-
-  const [form, setForm] = useState({
-    companyName: partner.companyName,
-    phone: partner.phone,
-    email: partner.email,
-    province: partner.province,
-    city: partner.city,
-    bairro: partner.bairro,
-    rua: partner.rua,
+  const [partner, setPartner] = useState<Partner | null>(null)
+  const [logs, setLogs] = useState<ActivityLog[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<ProfileForm>({
+    companyName: "",
+    phone: "",
+    email: "",
+    province: "",
+    city: "",
+    bairro: "",
+    rua: "",
   })
 
-  const handleSave = () => {
-    store.updatePartner(partner.id, form)
-    store.addLog({
-      userId: partner.id,
-      userType: "partner",
-      action: "Perfil actualizado",
-      details: "Informacoes do perfil actualizadas",
-    })
-    toast.success("Perfil actualizado com sucesso")
+  useEffect(() => {
+    if (user?.id) {
+      fetchData()
+    }
+  }, [user?.id])
+
+  const fetchData = async () => {
+    try {
+      const [partnerRes, logsRes] = await Promise.all([
+        fetch(`/api/partners/${user?.id}`),
+        fetch(`/api/logs?userId=${user?.id}`),
+      ])
+
+      if (partnerRes.ok) {
+        const data = await partnerRes.json()
+        setPartner(data)
+        setForm({
+          companyName: data.companyName,
+          phone: data.phone,
+          email: data.email,
+          province: data.province,
+          city: data.city,
+          bairro: data.bairro,
+          rua: data.rua,
+        })
+        console.log("[v0] Partner loaded:", data)
+      } else {
+        toast.error("Erro ao carregar dados do parceiro")
+      }
+
+      if (logsRes.ok) {
+        const data = await logsRes.json()
+        setLogs(data.slice(0, 20))
+        console.log("[v0] Logs loaded:", data)
+      }
+    } catch (err) {
+      console.error("[v0] Error fetching data:", err)
+      toast.error("Erro ao conectar com o servidor")
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const logs = store.state.logs
-    .filter((l) => l.userId === partner.id)
-    .slice(0, 20)
+  const handleSave = async () => {
+    if (!partner) return
+
+    if (form.companyName.trim().length < 3) {
+      toast.error("Nome da empresa deve ter pelo menos 3 caracteres")
+      return
+    }
+
+    if (form.phone.trim().length < 5) {
+      toast.error("Telefone invalido")
+      return
+    }
+
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/partners/${partner.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      })
+
+      if (res.ok) {
+        await fetchData()
+        toast.success("Perfil actualizado com sucesso")
+        console.log("[v0] Profile updated successfully")
+      } else {
+        const error = await res.json()
+        toast.error(error.error || "Erro ao guardar")
+      }
+    } catch (err) {
+      console.error("[v0] Error saving profile:", err)
+      toast.error("Erro ao conectar com o servidor")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Perfil</h1>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!partner) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Perfil</h1>
+          <p className="text-muted-foreground">Erro ao carregar dados</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -66,7 +168,11 @@ export default function ProfilePage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-1.5">
               <Label className="text-foreground">Nome da Empresa</Label>
-              <Input value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} />
+              <Input 
+                value={form.companyName} 
+                onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                disabled={saving}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-foreground">NIF</Label>
@@ -74,15 +180,23 @@ export default function ProfilePage() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-foreground">Telefone</Label>
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <Input 
+                value={form.phone} 
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                disabled={saving}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-foreground">Email</Label>
-              <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <Input 
+                value={form.email} 
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                disabled={saving}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-foreground">Provincia</Label>
-              <Select value={form.province} onValueChange={(v) => setForm({ ...form, province: v })}>
+              <Select value={form.province} onValueChange={(v) => setForm({ ...form, province: v })} disabled={saving}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {PROVINCES.map((p) => (
@@ -93,20 +207,32 @@ export default function ProfilePage() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-foreground">Cidade</Label>
-              <Input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+              <Input 
+                value={form.city} 
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                disabled={saving}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-foreground">Bairro</Label>
-              <Input value={form.bairro} onChange={(e) => setForm({ ...form, bairro: e.target.value })} />
+              <Input 
+                value={form.bairro} 
+                onChange={(e) => setForm({ ...form, bairro: e.target.value })}
+                disabled={saving}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label className="text-foreground">Rua</Label>
-              <Input value={form.rua} onChange={(e) => setForm({ ...form, rua: e.target.value })} />
+              <Input 
+                value={form.rua} 
+                onChange={(e) => setForm({ ...form, rua: e.target.value })}
+                disabled={saving}
+              />
             </div>
           </div>
-          <Button className="mt-4" onClick={handleSave}>
+          <Button className="mt-4" onClick={handleSave} disabled={saving}>
             <Save className="mr-2 h-4 w-4" />
-            Guardar Alteracoes
+            {saving ? "Guardando..." : "Guardar Alteracoes"}
           </Button>
         </CardContent>
       </Card>
@@ -126,7 +252,7 @@ export default function ProfilePage() {
             <div className="rounded-lg border border-border p-3">
               <p className="text-xs text-muted-foreground">Licenca</p>
               <Badge variant={partner.blocked ? "destructive" : "default"} className="mt-1">
-                {partner.blocked ? "Bloqueado" : partner.licenseType === "free_trial" ? "Teste Gratis" : "Pago"}
+                {partner.blocked ? "Bloqueado" : "Activo"}
               </Badge>
             </div>
             <div className="rounded-lg border border-border p-3">
