@@ -36,57 +36,60 @@ export default function PartnerDashboard() {
 
   const fetchData = async () => {
     if (!user?.id) {
-      console.log("[v0] No user ID, skipping fetch")
+      console.log("[v0] Dashboard: No user ID, skipping fetch")
       return
     }
 
     try {
       setError(null)
-      console.log("[v0] Fetching partner data for:", user.id)
+      console.log("[v0] Dashboard: Fetching partner data for user:", user.id)
+      console.log("[v0] Dashboard: User object:", user)
 
       const partnerRes = await fetch(`/api/partners/${user.id}`)
+      console.log("[v0] Dashboard: Partner API response status:", partnerRes.status)
+      
       if (partnerRes.ok) {
         const data = await partnerRes.json()
-        console.log("[v0] Partner data loaded:", data)
+        console.log("[v0] Dashboard: Partner data loaded successfully:", data.id, data.companyName)
         setPartner(data)
       } else {
         const errText = await partnerRes.text()
-        console.error("[v0] Partner fetch error (status", partnerRes.status, "):", errText)
-        setError("Erro ao carregar dados do parceiro")
+        console.error("[v0] Dashboard: Partner fetch failed (status", partnerRes.status, "):", errText)
+        setError(`Erro ao carregar dados do parceiro (${partnerRes.status}: ${errText})`)
       }
 
       const servicesRes = await fetch(`/api/services?partnerId=${user.id}`)
       if (servicesRes.ok) {
         const data = await servicesRes.json()
-        console.log("[v0] Services loaded:", data)
+        console.log("[v0] Dashboard: Services loaded:", data.length)
         setServices(Array.isArray(data) ? data : [])
       } else {
-        console.error("[v0] Services fetch error:", await servicesRes.text())
+        console.error("[v0] Dashboard: Services fetch error:", await servicesRes.text())
         setServices([])
       }
 
       const subsRes = await fetch("/api/subscriptions")
       if (subsRes.ok) {
         const data = await subsRes.json()
-        console.log("[v0] Subscriptions loaded:", data)
+        console.log("[v0] Dashboard: Subscriptions loaded:", data.length)
         const filtered = Array.isArray(data) ? data.filter((s: PlanSubscription) => s.partnerId === user.id) : []
         setSubscriptions(filtered)
       } else {
-        console.error("[v0] Subscriptions fetch error:", await subsRes.text())
+        console.error("[v0] Dashboard: Subscriptions fetch error:", await subsRes.text())
         setSubscriptions([])
       }
 
       const plansRes = await fetch("/api/plans")
       if (plansRes.ok) {
         const data = await plansRes.json()
-        console.log("[v0] Plans loaded:", data)
+        console.log("[v0] Dashboard: Plans loaded:", data.length)
         setPlans(Array.isArray(data) ? data : [])
       } else {
-        console.error("[v0] Plans fetch error:", await plansRes.text())
+        console.error("[v0] Dashboard: Plans fetch error:", await plansRes.text())
         setPlans([])
       }
     } catch (err) {
-      console.error("[v0] Dashboard fetch error:", err)
+      console.error("[v0] Dashboard: Catch error:", err)
       setError("Erro ao conectar com o servidor")
     } finally {
       setLoading(false)
