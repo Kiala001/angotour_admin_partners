@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPartner, addLog } from "@/lib/db/repository"
+import { getPartner, getAllPartners, addLog } from "@/lib/db/repository"
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,36 +11,40 @@ export async function POST(request: NextRequest) {
     }
 
     // Find partner by login email
-    const allPartners = await fetch(`${process.env.VERCEL_URL || "http://localhost:3000"}/api/partners`)
-      .then((res) => res.json())
-      .catch(() => [])
-
+    const allPartners = await getAllPartners()
     const partner = allPartners.find(
       (p: any) => p.loginEmail === email && p.password === password
     )
 
     if (!partner) {
+      console.log("[v0] Partner login failed: Invalid credentials for", email)
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 })
     }
+
+    console.log("[v0] Partner login successful:", partner.id, email)
 
     // Log the login
     await addLog({
       userId: partner.id,
       userType: "partner",
-      action: "login",
-      details: `Partner ${partner.companyName} logged in`,
+      action: "Partner Login",
+      details: `Partner ${partner.companyName} logged in from ${email}`,
     })
 
-    return NextResponse.json({
-      success: true,
-      partner: {
+    return NextResponse.json(
+      {
+        success: true,
         id: partner.id,
-        email: partner.loginEmail,
+        email: partner.email,
+        loginEmail: partner.loginEmail,
+        name: partner.companyName,
         companyName: partner.companyName,
         type: partner.type,
       },
-    })
+      { status: 200 }
+    )
   } catch (error) {
-    return NextResponse.json({ error: "Login failed" }, { status: 500 })
+    console.error("[v0] Partner login error:", error)
+    return NextResponse.json({ error: "Login failed: " + (error instanceof Error ? error.message : "Unknown error") }, { status: 500 })
   }
 }
