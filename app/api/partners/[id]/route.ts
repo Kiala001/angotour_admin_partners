@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getPartner, updatePartner, addLog, getAllPartners } from "@/lib/db/repository"
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = params.id
+    const { id } = await params
     console.log("[v0] API GET /partners/[id]: Fetching partner with ID:", id)
 
     if (!id) {
@@ -40,9 +40,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = params.id
+    const { id } = await params
     console.log("[v0] API PATCH /partners/[id]: Updating partner with ID:", id)
 
     if (!id) {
