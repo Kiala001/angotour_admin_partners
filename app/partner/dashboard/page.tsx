@@ -10,52 +10,96 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { FileText, Package, Crown, Clock, CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
 
 export default function PartnerDashboard() {
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const [partner, setPartner] = useState<Partner | null>(null)
   const [services, setServices] = useState<ServiceProduct[]>([])
   const [subscriptions, setSubscriptions] = useState<PlanSubscription[]>([])
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (user?.id) {
-      fetchData()
+    if (authLoading) {
+      console.log("[v0] Auth still loading...")
+      return
     }
-  }, [user?.id])
+
+    if (!user?.id) {
+      console.log("[v0] No user ID available:", user)
+      setLoading(false)
+      return
+    }
+
+    console.log("[v0] Dashboard: Starting data fetch for user:", user.id)
+    fetchData()
+  }, [user?.id, authLoading])
 
   const fetchData = async () => {
-    try {
-      const [partnerRes, servicesRes, subsRes, plansRes] = await Promise.all([
-        fetch(`/api/partners/${user?.id}`),
-        fetch(`/api/services?partnerId=${user?.id}`),
-        fetch("/api/subscriptions"),
-        fetch("/api/plans"),
-      ])
+    if (!user?.id) {
+      console.log("[v0] No user ID, skipping fetch")
+      return
+    }
 
+    try {
+      setError(null)
+      console.log("[v0] Fetching partner data for:", user.id)
+
+      const partnerRes = await fetch(`/api/partners/${user.id}`)
       if (partnerRes.ok) {
         const data = await partnerRes.json()
+        console.log("[v0] Partner data loaded:", data)
         setPartner(data)
+      } else {
+        const err = await partnerRes.text()
+        console.error("[v0] Partner fetch error:", err)
+        setError("Erro ao carregar dados do parceiro")
       }
+
+      const servicesRes = await fetch(`/api/services?partnerId=${user.id}`)
       if (servicesRes.ok) {
         const data = await servicesRes.json()
-        setServices(data)
+        console.log("[v0] Services loaded:", data)
+        setServices(Array.isArray(data) ? data : [])
       }
+
+      const subsRes = await fetch("/api/subscriptions")
       if (subsRes.ok) {
         const data = await subsRes.json()
-        setSubscriptions(data.filter((s: PlanSubscription) => s.partnerId === user?.id))
+        console.log("[v0] Subscriptions loaded:", data)
+        const filtered = Array.isArray(data) ? data.filter((s: PlanSubscription) => s.partnerId === user.id) : []
+        setSubscriptions(filtered)
       }
+
+      const plansRes = await fetch("/api/plans")
       if (plansRes.ok) {
         const data = await plansRes.json()
-        setPlans(data)
+        console.log("[v0] Plans loaded:", data)
+        setPlans(Array.isArray(data) ? data : [])
       }
     } catch (err) {
-      console.error("[v0] Error fetching data:", err)
+      console.error("[v0] Dashboard fetch error:", err)
+      setError("Erro ao conectar com o servidor")
     } finally {
       setLoading(false)
     }
   }
 
-  if (loading || !partner) {
+  if (authLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Carregando autenticacao...</h1>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
     return (
       <div className="flex flex-col gap-6">
         <div>
@@ -70,10 +114,31 @@ export default function PartnerDashboard() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Erro</h1>
+          <p className="text-muted-foreground">{error}</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!partner) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Carregando dados...</h1>
+        </div>
+      </div>
+    )
+  }
+
   const activeSub = subscriptions
     .filter((s) => s.partnerId === partner.id && s.status === "approved")
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
-  
+
   const currentPlan = activeSub ? plans.find((p) => p.id === activeSub.planId) : null
   const daysLeft = daysUntil(partner.licenseExpiry)
 
