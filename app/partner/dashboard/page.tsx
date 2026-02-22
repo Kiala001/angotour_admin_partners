@@ -50,8 +50,8 @@ export default function PartnerDashboard() {
         console.log("[v0] Partner data loaded:", data)
         setPartner(data)
       } else {
-        const err = await partnerRes.text()
-        console.error("[v0] Partner fetch error:", err)
+        const errText = await partnerRes.text()
+        console.error("[v0] Partner fetch error (status", partnerRes.status, "):", errText)
         setError("Erro ao carregar dados do parceiro")
       }
 
@@ -60,6 +60,9 @@ export default function PartnerDashboard() {
         const data = await servicesRes.json()
         console.log("[v0] Services loaded:", data)
         setServices(Array.isArray(data) ? data : [])
+      } else {
+        console.error("[v0] Services fetch error:", await servicesRes.text())
+        setServices([])
       }
 
       const subsRes = await fetch("/api/subscriptions")
@@ -68,6 +71,9 @@ export default function PartnerDashboard() {
         console.log("[v0] Subscriptions loaded:", data)
         const filtered = Array.isArray(data) ? data.filter((s: PlanSubscription) => s.partnerId === user.id) : []
         setSubscriptions(filtered)
+      } else {
+        console.error("[v0] Subscriptions fetch error:", await subsRes.text())
+        setSubscriptions([])
       }
 
       const plansRes = await fetch("/api/plans")
@@ -75,6 +81,9 @@ export default function PartnerDashboard() {
         const data = await plansRes.json()
         console.log("[v0] Plans loaded:", data)
         setPlans(Array.isArray(data) ? data : [])
+      } else {
+        console.error("[v0] Plans fetch error:", await plansRes.text())
+        setPlans([])
       }
     } catch (err) {
       console.error("[v0] Dashboard fetch error:", err)

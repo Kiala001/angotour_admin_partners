@@ -102,30 +102,50 @@ function DocumentUploadCard({
 }
 
 export default function DocumentsPage() {
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const [partner, setPartner] = useState<Partner | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
-    if (user?.id) {
-      fetchPartner()
+    if (authLoading) {
+      console.log("[v0] Documents page: Auth still loading...")
+      return
     }
-  }, [user?.id])
+
+    if (!user?.id) {
+      console.log("[v0] Documents page: No user ID available:", user)
+      setLoading(false)
+      return
+    }
+
+    console.log("[v0] Documents page: Starting data fetch for user:", user.id)
+    fetchPartner()
+  }, [user?.id, authLoading])
 
   const fetchPartner = async () => {
+    if (!user?.id) {
+      console.log("[v0] Documents: No user ID, skipping fetch")
+      return
+    }
+
     try {
-      const res = await fetch(`/api/partners/${user?.id}`)
+      setError(null)
+      console.log("[v0] Fetching documents for partner:", user.id)
+      const res = await fetch(`/api/partners/${user.id}`)
       if (res.ok) {
         const data = await res.json()
         setPartner(data)
         console.log("[v0] Partner loaded:", data)
       } else {
-        toast.error("Erro ao carregar dados do parceiro")
+        const errText = await res.text()
+        console.error("[v0] Partner fetch error (status", res.status, "):", errText)
+        setError("Erro ao carregar dados do parceiro")
       }
     } catch (err) {
       console.error("[v0] Error fetching partner:", err)
-      toast.error("Erro ao conectar com o servidor")
+      setError("Erro ao conectar com o servidor")
     } finally {
       setLoading(false)
     }
@@ -172,6 +192,17 @@ export default function DocumentsPage() {
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-16" />
           ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Documentos</h1>
+          <p className="text-destructive">{error}</p>
         </div>
       </div>
     )

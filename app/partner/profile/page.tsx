@@ -25,10 +25,11 @@ interface ProfileForm {
 }
 
 export default function ProfilePage() {
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const [partner, setPartner] = useState<Partner | null>(null)
   const [logs, setLogs] = useState<ActivityLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<ProfileForm>({
     companyName: "",
@@ -41,18 +42,32 @@ export default function ProfilePage() {
   })
 
   useEffect(() => {
-    if (user?.id) {
-      fetchData()
+    if (authLoading) {
+      console.log("[v0] Profile page: Auth still loading...")
+      return
     }
-  }, [user?.id])
+
+    if (!user?.id) {
+      console.log("[v0] Profile page: No user ID available:", user)
+      setLoading(false)
+      return
+    }
+
+    console.log("[v0] Profile page: Starting data fetch for user:", user.id)
+    fetchData()
+  }, [user?.id, authLoading])
 
   const fetchData = async () => {
-    try {
-      const [partnerRes, logsRes] = await Promise.all([
-        fetch(`/api/partners/${user?.id}`),
-        fetch(`/api/logs?userId=${user?.id}`),
-      ])
+    if (!user?.id) {
+      console.log("[v0] Profile: No user ID, skipping fetch")
+      return
+    }
 
+    try {
+      setError(null)
+      console.log("[v0] Fetching profile data for:", user.id)
+
+      const partnerRes = await fetch(`/api/partners/${user.id}`)
       if (partnerRes.ok) {
         const data = await partnerRes.json()
         setPartner(data)
@@ -67,17 +82,23 @@ export default function ProfilePage() {
         })
         console.log("[v0] Partner loaded:", data)
       } else {
-        toast.error("Erro ao carregar dados do parceiro")
+        const errText = await partnerRes.text()
+        console.error("[v0] Partner fetch error (status", partnerRes.status, "):", errText)
+        setError("Erro ao carregar dados do parceiro")
       }
 
+      const logsRes = await fetch(`/api/logs?userId=${user.id}`)
       if (logsRes.ok) {
         const data = await logsRes.json()
-        setLogs(data.slice(0, 20))
+        setLogs(Array.isArray(data) ? data.slice(0, 20) : [])
         console.log("[v0] Logs loaded:", data)
+      } else {
+        console.error("[v0] Logs fetch error:", await logsRes.text())
+        setLogs([])
       }
     } catch (err) {
       console.error("[v0] Error fetching data:", err)
-      toast.error("Erro ao conectar com o servidor")
+      setError("Erro ao conectar com o servidor")
     } finally {
       setLoading(false)
     }
@@ -131,6 +152,17 @@ export default function ProfilePage() {
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-32" />
           ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Perfil</h1>
+          <p className="text-destructive">{error}</p>
         </div>
       </div>
     )

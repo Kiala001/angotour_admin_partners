@@ -15,12 +15,13 @@ import { toast } from "sonner"
 import type { Partner, Plan, PlanSubscription, PaymentMethod } from "@/lib/types"
 
 export default function PartnerPlansPage() {
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const [partner, setPartner] = useState<Partner | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
   const [subscriptions, setSubscriptions] = useState<PlanSubscription[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [receiptName, setReceiptName] = useState("")
@@ -28,15 +29,33 @@ export default function PartnerPlansPage() {
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (user?.id) {
-      fetchData()
+    if (authLoading) {
+      console.log("[v0] Plans page: Auth still loading...")
+      return
     }
-  }, [user?.id])
+
+    if (!user?.id) {
+      console.log("[v0] Plans page: No user ID available:", user)
+      setLoading(false)
+      return
+    }
+
+    console.log("[v0] Plans page: Starting data fetch for user:", user.id)
+    fetchData()
+  }, [user?.id, authLoading])
 
   const fetchData = async () => {
+    if (!user?.id) {
+      console.log("[v0] Plans: No user ID, skipping fetch")
+      return
+    }
+
     try {
+      setError(null)
+      console.log("[v0] Fetching plans data for:", user.id)
+
       const [partnerRes, plansRes, pmsRes, subsRes] = await Promise.all([
-        fetch(`/api/partners/${user?.id}`),
+        fetch(`/api/partners/${user.id}`),
         fetch("/api/plans"),
         fetch("/api/payment-methods"),
         fetch("/api/subscriptions"),
@@ -46,28 +65,44 @@ export default function PartnerPlansPage() {
         const data = await partnerRes.json()
         setPartner(data)
         console.log("[v0] Partner loaded:", data)
+      } else {
+        const errText = await partnerRes.text()
+        console.error("[v0] Partner fetch error (status", partnerRes.status, "):", errText)
+        setError("Erro ao carregar dados do parceiro")
       }
 
       if (plansRes.ok) {
         const data = await plansRes.json()
-        setPlans(data.filter((p: Plan) => p.active))
-        console.log("[v0] Plans loaded:", data)
+        const activePlans = Array.isArray(data) ? data.filter((p: Plan) => p.active !== false) : []
+        setPlans(activePlans)
+        console.log("[v0] Plans loaded:", activePlans)
+      } else {
+        console.error("[v0] Plans fetch error:", await plansRes.text())
+        setPlans([])
       }
 
       if (pmsRes.ok) {
         const data = await pmsRes.json()
-        setPaymentMethods(data.filter((pm: PaymentMethod) => pm.active))
-        console.log("[v0] Payment methods loaded:", data)
+        const activeMs = Array.isArray(data) ? data.filter((pm: PaymentMethod) => pm.active !== false) : []
+        setPaymentMethods(activeMs)
+        console.log("[v0] Payment methods loaded:", activeMs)
+      } else {
+        console.error("[v0] Payment methods fetch error:", await pmsRes.text())
+        setPaymentMethods([])
       }
 
       if (subsRes.ok) {
         const data = await subsRes.json()
-        setSubscriptions(data.filter((s: PlanSubscription) => s.partnerId === user?.id))
-        console.log("[v0] Subscriptions loaded:", data)
+        const filtered = Array.isArray(data) ? data.filter((s: PlanSubscription) => s.partnerId === user.id) : []
+        setSubscriptions(filtered)
+        console.log("[v0] Subscriptions loaded:", filtered)
+      } else {
+        console.error("[v0] Subscriptions fetch error:", await subsRes.text())
+        setSubscriptions([])
       }
     } catch (err) {
-      console.error("[v0] Error fetching data:", err)
-      toast.error("Erro ao carregar dados")
+      console.error("[v0] Plans page fetch error:", err)
+      setError("Erro ao conectar com o servidor")
     } finally {
       setLoading(false)
     }
@@ -119,6 +154,22 @@ export default function PartnerPlansPage() {
     }
   }
 
+  if (authLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Planos</h1>
+          <p className="text-muted-foreground">Carregando autenticacao...</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-48" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col gap-6">
@@ -130,6 +181,17 @@ export default function PartnerPlansPage() {
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-48" />
           ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Planos</h1>
+          <p className="text-destructive">{error}</p>
         </div>
       </div>
     )
