@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { useStore } from "@/lib/data/store"
+import { useState, useEffect } from "react"
 import { formatAOA } from "@/lib/validations"
+import { apiClient } from "@/lib/use-api"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -11,8 +11,10 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Crown, Plus, Pencil, Trash2 } from "lucide-react"
 import { toast } from "sonner"
+import type { Plan, PaymentMethod } from "@/lib/types"
 
 interface PlanFormState {
   name: string
@@ -31,11 +33,33 @@ const emptyForm: PlanFormState = {
 }
 
 export default function AdminPlansPage() {
-  const store = useStore()
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [loading, setLoading] = useState(true)
   const [showDialog, setShowDialog] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<PlanFormState>(emptyForm)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    try {
+      const [plansRes, pmsRes] = await Promise.all([
+        apiClient.getPlans(),
+        apiClient.getPaymentMethods(),
+      ])
+      setPlans(plansRes)
+      setPaymentMethods(pmsRes)
+    } catch (err) {
+      console.error("[v0] Error fetching data:", err)
+      toast.error("Erro ao carregar dados")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const openCreate = () => {
     setEditId(null)
@@ -44,7 +68,7 @@ export default function AdminPlansPage() {
   }
 
   const openEdit = (id: string) => {
-    const plan = store.state.plans.find((p) => p.id === id)
+    const plan = plans.find((p) => p.id === id)
     if (!plan) return
     setEditId(id)
     setForm({
@@ -57,30 +81,38 @@ export default function AdminPlansPage() {
     setShowDialog(true)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Nome obrigatorio"); return }
     if (form.durationDays < 1) { toast.error("Duracao deve ser pelo menos 1 dia"); return }
     if (form.price < 0) { toast.error("Preco invalido"); return }
     if (form.paymentMethodIds.length === 0) { toast.error("Selecione pelo menos 1 metodo de pagamento"); return }
 
-    if (editId) {
-      store.updatePlan(editId, { ...form, currency: "AOA" })
-      store.addLog({ userId: "admin-1", userType: "admin", action: "Plano actualizado", details: form.name })
-      toast.success("Plano actualizado")
-    } else {
-      store.addPlan({ ...form, currency: "AOA" })
-      store.addLog({ userId: "admin-1", userType: "admin", action: "Plano criado", details: form.name })
-      toast.success("Plano criado")
+    try {
+      if (editId) {
+        await apiClient.updatePlan(editId, { ...form, currency: "AOA" })
+        toast.success("Plano actualizado")
+      } else {
+        await apiClient.createPlan({ ...form, currency: "AOA" })
+        toast.success("Plano criado")
+      }
+      await fetchData()
+      setShowDialog(false)
+    } catch (err) {
+      console.error("[v0] Error saving plan:", err)
+      toast.error("Erro ao guardar plano")
     }
-    setShowDialog(false)
   }
 
-  const handleDelete = (id: string) => {
-    const plan = store.state.plans.find((p) => p.id === id)
-    store.deletePlan(id)
-    store.addLog({ userId: "admin-1", userType: "admin", action: "Plano eliminado", details: plan?.name || id })
-    toast.success("Plano eliminado")
-    setDeleteConfirm(null)
+  const handleDelete = async (id: string) => {
+    try {
+      await apiClient.deletePlan(id)
+      toast.success("Plano eliminado")
+      await fetchData()
+      setDeleteConfirm(null)
+    } catch (err) {
+      console.error("[v0] Error deleting plan:", err)
+      toast.error("Erro ao eliminar plano")
+    }
   }
 
   const togglePM = (pmId: string) => {
@@ -92,14 +124,30 @@ export default function AdminPlansPage() {
     }))
   }
 
-  const activePMs = store.state.paymentMethods.filter((pm) => pm.active)
+  const activePMs = paymentMethods.filter((pm) => pm.active)
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Gestao de Planos</h1>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-48" />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Gestao de Planos</h1>
-          <p className="text-muted-foreground">{store.state.plans.length} plano(s) configurado(s)</p>
+          <p className="text-muted-foreground">{plans.length} plano(s) configurado(s)</p>
         </div>
         <Button onClick={openCreate} className="flex items-center gap-2">
           <Plus className="h-4 w-4" />
@@ -107,7 +155,7 @@ export default function AdminPlansPage() {
         </Button>
       </div>
 
-      {store.state.plans.length === 0 ? (
+      {plans.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Crown className="h-12 w-12 text-muted-foreground mb-4" />
@@ -116,8 +164,8 @@ export default function AdminPlansPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {store.state.plans.map((plan) => {
-            const linkedPMs = store.state.paymentMethods.filter((pm) => plan.paymentMethodIds.includes(pm.id))
+          {plans.map((plan) => {
+            const linkedPMs = paymentMethods.filter((pm) => plan.paymentMethodIds.includes(pm.id))
             return (
               <Card key={plan.id} className={!plan.active ? "opacity-60" : ""}>
                 <CardHeader className="flex flex-row items-start justify-between pb-2">

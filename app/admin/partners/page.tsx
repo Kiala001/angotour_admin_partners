@@ -1,27 +1,47 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useStore } from "@/lib/data/store"
-import { PARTNER_TYPE_LABELS, type PartnerType } from "@/lib/types"
+import { PARTNER_TYPE_LABELS, type PartnerType, type Partner } from "@/lib/types"
 import { daysUntil } from "@/lib/validations"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Search, Eye, Ban, CheckCircle2, Users } from "lucide-react"
 import { toast } from "sonner"
 
 const ALL_TYPES: PartnerType[] = ["Hotel", "Restaurante", "Bar", "Geladaria", "Resort", "Cafeteria", "RentACar", "GuiaTuristico", "Mista"]
 
 export default function AdminPartnersPage() {
-  const store = useStore()
+  const [partners, setPartners] = useState<Partner[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [statusFilter, setStatusFilter] = useState<string>("all")
 
-  const filtered = store.state.partners
+  useEffect(() => {
+    fetchPartners()
+  }, [])
+
+  const fetchPartners = async () => {
+    try {
+      const res = await fetch("/api/partners")
+      if (res.ok) {
+        const data = await res.json()
+        setPartners(data)
+      }
+    } catch (err) {
+      console.error("[v0] Error fetching partners:", err)
+      toast.error("Erro ao carregar parceiros")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filtered = partners
     .filter((p) => {
       if (search) {
         const s = search.toLowerCase()
@@ -38,22 +58,45 @@ export default function AdminPartnersPage() {
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-  const handleToggleBlock = (id: string, blocked: boolean) => {
-    store.blockPartner(id, !blocked)
-    store.addLog({
-      userId: "admin-1",
-      userType: "admin",
-      action: blocked ? "Parceiro desbloqueado" : "Parceiro bloqueado",
-      details: `Parceiro ${store.state.partners.find((p) => p.id === id)?.companyName}`,
-    })
-    toast.success(blocked ? "Parceiro desbloqueado" : "Parceiro bloqueado")
+  const handleToggleBlock = async (id: string, blocked: boolean) => {
+    try {
+      const res = await fetch(`/api/partners/${id}/block`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blocked: !blocked }),
+      })
+
+      if (res.ok) {
+        await fetchPartners()
+        toast.success(blocked ? "Parceiro desbloqueado" : "Parceiro bloqueado")
+      }
+    } catch (err) {
+      console.error("[v0] Error toggling block:", err)
+      toast.error("Erro ao atualizar parceiro")
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Gestao de Parceiros</h1>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-20 w-full" />
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Gestao de Parceiros</h1>
-        <p className="text-muted-foreground">{store.state.partners.length} parceiro(s) registado(s)</p>
+        <p className="text-muted-foreground">{partners.length} parceiro(s) registado(s)</p>
       </div>
 
       <div className="flex flex-col gap-3 md:flex-row">

@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useStore } from "@/lib/data/store"
 import { useAuth } from "@/components/auth-provider"
 import { partnerRegistrationSchema, type PartnerRegistrationForm } from "@/lib/validations"
 import { type PartnerType, PARTNER_TYPE_LABELS, PROVINCES } from "@/lib/types"
@@ -46,7 +45,7 @@ export default function RegisterPage() {
   const [mistaSubTypes, setMistaSubTypes] = useState<PartnerType[]>([])
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
-  const store = useStore()
+  const [loading, setLoading] = useState(false)
   const { login } = useAuth()
   const router = useRouter()
 
@@ -99,41 +98,50 @@ export default function RegisterPage() {
 
   const handleBack = () => setStep((s) => Math.max(s - 1, 1))
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selectedType) return
     const values = form.getValues()
 
-    const existing = store.state.partners.find((p) => p.loginEmail === values.loginEmail || p.nif === values.nif)
-    if (existing) {
-      toast.error("Ja existe um parceiro com este email ou NIF")
-      return
+    setLoading(true)
+    try {
+      const res = await fetch("/api/auth/partner/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: selectedType,
+          mistaSubTypes: selectedType === "Mista" ? mistaSubTypes : undefined,
+          companyName: values.companyName,
+          nif: values.nif,
+          phone: values.phone,
+          email: values.email,
+          loginEmail: values.loginEmail,
+          password: values.password,
+          province: values.province,
+          city: values.city,
+          bairro: values.bairro,
+          rua: values.rua,
+        }),
+      })
+
+      if (res.ok) {
+        const partner = await res.json()
+        const loginResult = await login(values.loginEmail, values.password)
+        if (loginResult.success) {
+          toast.success("Registo realizado com sucesso!")
+          router.push("/partner/documents")
+        } else {
+          toast.error("Registo realizado, mas falha ao fazer login")
+        }
+      } else {
+        const error = await res.json()
+        toast.error(error.error || "Erro ao registar")
+      }
+    } catch (err) {
+      console.error("[v0] Register error:", err)
+      toast.error("Erro ao conectar com o servidor")
+    } finally {
+      setLoading(false)
     }
-
-    const partner = store.addPartner({
-      type: selectedType,
-      mistaSubTypes: selectedType === "Mista" ? mistaSubTypes : undefined,
-      companyName: values.companyName,
-      nif: values.nif,
-      phone: values.phone,
-      email: values.email,
-      loginEmail: values.loginEmail,
-      password: values.password,
-      province: values.province,
-      city: values.city,
-      bairro: values.bairro,
-      rua: values.rua,
-    })
-
-    store.addLog({
-      userId: partner.id,
-      userType: "partner",
-      action: "Registo",
-      details: `Parceiro ${values.companyName} registado como ${PARTNER_TYPE_LABELS[selectedType]}`,
-    })
-
-    login(values.loginEmail, values.password, [...store.state.partners, partner], store.state.admins)
-    toast.success("Registo realizado com sucesso!")
-    router.push("/partner/documents")
   }
 
   return (
