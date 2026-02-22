@@ -44,7 +44,7 @@ export default function LoginPage() {
           </div>
           <CardTitle className="text-2xl font-bold text-foreground">Angotour</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Acesse o painel de gestao
+            Acesse o painel de gestão
           </CardDescription>
         </CardHeader>
         <CardContent>

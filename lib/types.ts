@@ -131,14 +131,14 @@ export const PARTNER_TYPE_LABELS: Record<PartnerType, string> = {
 }
 
 export const REQUIRED_DOCUMENTS: Record<Exclude<PartnerType, "Mista">, string[]> = {
-  Hotel: ["Alvara", "Licenca de Funcionamento", "Licenca de Turismo", "Certificado de Seguranca"],
-  Restaurante: ["Alvara", "Licenca de Funcionamento", "Licenca Sanitaria"],
-  Bar: ["Alvara", "Licenca de Funcionamento", "Licenca de Bebidas Alcoolicas"],
-  Geladaria: ["Alvara", "Licenca de Funcionamento", "Licenca Sanitaria"],
-  Resort: ["Alvara", "Licenca de Funcionamento", "Licenca de Turismo", "Licenca Ambiental"],
-  Cafeteria: ["Alvara", "Licenca de Funcionamento", "Licenca Sanitaria"],
-  RentACar: ["Alvara", "Licenca de Funcionamento", "Licenca de Transporte", "Seguro de Frota"],
-  GuiaTuristico: ["Carteira Profissional", "Certificado de Guia", "Seguro de Responsabilidade Civil"],
+  Hotel: ["Alvará"],
+  Restaurante: ["Alvará"],
+  Bar: ["Alvará"],
+  Geladaria: ["Alvará"],
+  Resort: ["Alvará"],
+  Cafeteria: ["Alvará"],
+  RentACar: ["Alvará"],
+  GuiaTuristico: ["Carteira Profissional"],
 }
 
 export function getRequiredDocuments(type: PartnerType, mistaSubTypes?: PartnerType[]): string[] {
