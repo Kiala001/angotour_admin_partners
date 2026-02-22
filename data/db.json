@@ -1,0 +1,94 @@
+{
+  "partners": [
+    {
+      "type": "Restaurante",
+      "companyName": "IK Food",
+      "nif": "93847583748574",
+      "phone": "955649313",
+      "email": "kialamanuelkm@gmail.com",
+      "loginEmail": "kialaemanuel@gmail.com",
+      "password": "CheLseaFCB@1",
+      "province": "Luanda",
+      "city": "Luanda",
+      "bairro": "Nova Urbanização",
+      "rua": "273 CT",
+      "id": "partner-1771787087305-gc98z",
+      "createdAt": "2026-02-22T19:04:47.305Z",
+      "documents": [],
+      "documentsStatus": "not_uploaded",
+      "licenseType": "free_trial",
+      "licenseExpiry": "2026-03-24T19:04:47.305Z",
+      "blocked": false
+    }
+  ],
+  "plans": [],
+  "subscriptions": [],
+  "paymentMethods": [],
+  "services": [],
+  "admins": [
+    {
+      "id": "admin-1",
+      "email": "webtec.solution@gmail.com",
+      "password": "WebtecSolution",
+      "name": "Webtec Solution"
+    }
+  ],
+  "logs": [
+    {
+      "userId": "admin-1",
+      "userType": "admin",
+      "action": "login",
+      "details": "Admin webtec.solution@gmail.com logged in",
+      "id": "log-1771787198117-3k5tx",
+      "timestamp": "2026-02-22T19:06:38.117Z"
+    },
+    {
+      "userId": "partner-1771787087305-gc98z",
+      "userType": "partner",
+      "action": "login",
+      "details": "Partner IK Food logged in",
+      "id": "log-1771787147409-owq5a",
+      "timestamp": "2026-02-22T19:05:47.409Z"
+    },
+    {
+      "userId": "partner-1771787087305-gc98z",
+      "userType": "partner",
+      "action": "login",
+      "details": "Partner IK Food logged in",
+      "id": "log-1771787088185-ai3iu",
+      "timestamp": "2026-02-22T19:04:48.185Z"
+    },
+    {
+      "userId": "partner-1771787087998-0dd4v",
+      "userType": "partner",
+      "action": "register",
+      "details": "Partner IK Food (Restaurante) registered",
+      "id": "log-1771787088005-m202e",
+      "timestamp": "2026-02-22T19:04:48.005Z"
+    },
+    {
+      "userId": "partner-1771787087305-gc98z",
+      "userType": "partner",
+      "action": "login",
+      "details": "Partner IK Food logged in",
+      "id": "log-1771787087420-fb5ue",
+      "timestamp": "2026-02-22T19:04:47.420Z"
+    },
+    {
+      "userId": "partner-1771787087305-gc98z",
+      "userType": "partner",
+      "action": "register",
+      "details": "Partner IK Food (Restaurante) registered",
+      "id": "log-1771787087308-td5t8",
+      "timestamp": "2026-02-22T19:04:47.308Z"
+    },
+    {
+      "userId": "admin-1",
+      "userType": "admin",
+      "action": "login",
+      "details": "Admin webtec.solution@gmail.com logged in",
+      "id": "log-1771786816025-znk9s",
+      "timestamp": "2026-02-22T19:00:16.025Z"
+    }
+  ]
+}
