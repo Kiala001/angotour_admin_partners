@@ -1,35 +1,77 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
-import { useStore } from "@/lib/data/store"
 import { formatAOA, daysUntil } from "@/lib/validations"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog"
 import { Crown, Check, Upload, Clock, CheckCircle2, XCircle } from "lucide-react"
 import { toast } from "sonner"
+import type { Partner, Plan, PlanSubscription, PaymentMethod } from "@/lib/types"
 
 export default function PartnerPlansPage() {
   const { user } = useAuth()
-  const store = useStore()
+  const [partner, setPartner] = useState<Partner | null>(null)
+  const [plans, setPlans] = useState<Plan[]>([])
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
+  const [subscriptions, setSubscriptions] = useState<PlanSubscription[]>([])
+  const [loading, setLoading] = useState(true)
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [receiptName, setReceiptName] = useState("")
+  const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const partner = store.state.partners.find((p) => p.id === user?.id)
-  if (!partner) return null
+  useEffect(() => {
+    if (user?.id) {
+      fetchData()
+    }
+  }, [user?.id])
 
-  const activePlans = store.state.plans.filter((p) => p.active)
-  const mySubscriptions = store.state.subscriptions
-    .filter((s) => s.partnerId === partner.id)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  const daysLeft = daysUntil(partner.licenseExpiry)
-  const currentPlan = partner.planId ? store.state.plans.find((p) => p.id === partner.planId) : null
+  const fetchData = async () => {
+    try {
+      const [partnerRes, plansRes, pmsRes, subsRes] = await Promise.all([
+        fetch(`/api/partners/${user?.id}`),
+        fetch("/api/plans"),
+        fetch("/api/payment-methods"),
+        fetch("/api/subscriptions"),
+      ])
+
+      if (partnerRes.ok) {
+        const data = await partnerRes.json()
+        setPartner(data)
+        console.log("[v0] Partner loaded:", data)
+      }
+
+      if (plansRes.ok) {
+        const data = await plansRes.json()
+        setPlans(data.filter((p: Plan) => p.active))
+        console.log("[v0] Plans loaded:", data)
+      }
+
+      if (pmsRes.ok) {
+        const data = await pmsRes.json()
+        setPaymentMethods(data.filter((pm: PaymentMethod) => pm.active))
+        console.log("[v0] Payment methods loaded:", data)
+      }
+
+      if (subsRes.ok) {
+        const data = await subsRes.json()
+        setSubscriptions(data.filter((s: PlanSubscription) => s.partnerId === user?.id))
+        console.log("[v0] Subscriptions loaded:", data)
+      }
+    } catch (err) {
+      console.error("[v0] Error fetching data:", err)
+      toast.error("Erro ao carregar dados")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleSelectPlan = (planId: string) => {
     setSelectedPlan(planId)
@@ -42,29 +84,77 @@ export default function PartnerPlansPage() {
     if (file) setReceiptName(file.name)
   }
 
-  const handleSubmitReceipt = () => {
-    if (!selectedPlan || !receiptName) {
+  const handleSubmitReceipt = async () => {
+    if (!selectedPlan || !receiptName || !partner) {
       toast.error("Selecione o comprovativo de pagamento")
       return
     }
-    store.addSubscription({
-      partnerId: partner.id,
-      planId: selectedPlan,
-      receiptFileName: receiptName,
-    })
-    store.addLog({
-      userId: partner.id,
-      userType: "partner",
-      action: "Subscricao enviada",
-      details: `Comprovativo enviado para plano ${store.state.plans.find((p) => p.id === selectedPlan)?.name}`,
-    })
-    toast.success("Comprovativo enviado! Aguarde aprovacao do administrador.")
-    setDialogOpen(false)
+
+    setSubmitting(true)
+    try {
+      const res = await fetch("/api/subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          partnerId: partner.id,
+          planId: selectedPlan,
+          receiptFileName: receiptName,
+        }),
+      })
+
+      if (res.ok) {
+        await fetchData()
+        toast.success("Comprovativo enviado! Aguarde aprovacao do administrador.")
+        setDialogOpen(false)
+        console.log("[v0] Subscription created successfully")
+      } else {
+        const error = await res.json()
+        toast.error(error.error || "Erro ao criar subscricao")
+      }
+    } catch (err) {
+      console.error("[v0] Error submitting receipt:", err)
+      toast.error("Erro ao conectar com o servidor")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  const plan = selectedPlan ? store.state.plans.find((p) => p.id === selectedPlan) : null
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Planos</h1>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-48" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!partner) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Planos</h1>
+          <p className="text-muted-foreground">Erro ao carregar dados</p>
+        </div>
+      </div>
+    )
+  }
+
+  const activeSub = subscriptions
+    .filter((s) => s.status === "approved")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+
+  const currentPlan = activeSub ? plans.find((p) => p.id === activeSub.planId) : null
+  const daysLeft = daysUntil(partner.licenseExpiry)
+  const plan = selectedPlan ? plans.find((p) => p.id === selectedPlan) : null
   const planPaymentMethods = plan
-    ? store.state.paymentMethods.filter((pm) => plan.paymentMethodIds.includes(pm.id) && pm.active)
+    ? paymentMethods.filter((pm) => plan.paymentMethodIds.includes(pm.id))
     : []
 
   return (
@@ -92,45 +182,54 @@ export default function PartnerPlansPage() {
               </div>
             </div>
             <Badge variant={daysLeft > 10 ? "default" : daysLeft > 0 ? "secondary" : "destructive"}>
-              {partner.licenseType === "free_trial" ? "Teste Gratis" : "Pago"}
+              {currentPlan ? "Pago" : "Teste Gratis"}
             </Badge>
           </div>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {activePlans.map((p) => (
-          <Card key={p.id} className={partner.planId === p.id ? "border-primary border-2" : ""}>
-            <CardHeader className="text-center">
-              <CardTitle className="text-foreground">{p.name}</CardTitle>
-              <CardDescription>{p.durationDays} dias</CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <p className="text-3xl font-bold text-foreground">{formatAOA(p.price)}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                ~{formatAOA(Math.round(p.price / p.durationDays))}/dia
-              </p>
-              <Button
-                className="mt-4 w-full"
-                variant={partner.planId === p.id ? "secondary" : "default"}
-                onClick={() => handleSelectPlan(p.id)}
-              >
-                {partner.planId === p.id ? "Renovar" : "Escolher Plano"}
-              </Button>
+        {plans.length === 0 ? (
+          <Card className="col-span-full">
+            <CardContent className="flex items-center justify-center py-12">
+              <p className="text-muted-foreground">Nenhum plano disponivel</p>
             </CardContent>
           </Card>
-        ))}
+        ) : (
+          plans.map((p) => (
+            <Card key={p.id} className={activeSub?.planId === p.id ? "border-primary border-2" : ""}>
+              <CardHeader className="text-center">
+                <CardTitle className="text-foreground">{p.name}</CardTitle>
+                <CardDescription>{p.durationDays} dias</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <p className="text-3xl font-bold text-foreground">{formatAOA(p.price)}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  ~{formatAOA(Math.round(p.price / p.durationDays))}/dia
+                </p>
+                <Button
+                  className="mt-4 w-full"
+                  variant={activeSub?.planId === p.id ? "secondary" : "default"}
+                  onClick={() => handleSelectPlan(p.id)}
+                  disabled={submitting}
+                >
+                  {activeSub?.planId === p.id ? "Renovar" : "Escolher Plano"}
+                </Button>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
-      {mySubscriptions.length > 0 && (
+      {subscriptions.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-foreground">Historico de Subscricoes</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-3">
-              {mySubscriptions.map((sub) => {
-                const subPlan = store.state.plans.find((p) => p.id === sub.planId)
+              {subscriptions.map((sub) => {
+                const subPlan = plans.find((p) => p.id === sub.planId)
                 return (
                   <div key={sub.id} className="flex items-center justify-between rounded-lg border border-border p-3">
                     <div className="flex items-center gap-3">
@@ -191,18 +290,19 @@ export default function PartnerPlansPage() {
                 className="hidden"
                 accept=".pdf,.jpg,.jpeg,.png"
                 onChange={handleFileChange}
+                disabled={submitting}
               />
-              <Button variant="outline" className="w-full" onClick={() => inputRef.current?.click()}>
+              <Button variant="outline" className="w-full" onClick={() => inputRef.current?.click()} disabled={submitting}>
                 <Upload className="mr-2 h-4 w-4" />
                 {receiptName || "Selecionar ficheiro"}
               </Button>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSubmitReceipt} disabled={!receiptName}>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>Cancelar</Button>
+            <Button onClick={handleSubmitReceipt} disabled={!receiptName || submitting}>
               <Check className="mr-2 h-4 w-4" />
-              Enviar Comprovativo
+              {submitting ? "Enviando..." : "Enviar Comprovativo"}
             </Button>
           </DialogFooter>
         </DialogContent>

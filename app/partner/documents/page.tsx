@@ -1,31 +1,43 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
-import { useStore } from "@/lib/data/store"
 import { getRequiredDocuments } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Upload, CheckCircle2, XCircle, Clock, FileText } from "lucide-react"
 import { toast } from "sonner"
+import type { Partner, PartnerDocument } from "@/lib/types"
 
 function DocumentUploadCard({
   docType,
   existing,
   onUpload,
+  uploading,
 }: {
   docType: string
-  existing?: { id: string; fileName: string; status: string; reviewNote?: string }
-  onUpload: (docType: string, fileName: string) => void
+  existing?: PartnerDocument
+  onUpload: (docType: string, file: File) => Promise<void>
+  uploading?: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [isUploading, setIsUploading] = useState(false)
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      onUpload(docType, file.name)
-      toast.success(`Documento "${docType}" enviado com sucesso`)
+      setIsUploading(true)
+      try {
+        await onUpload(docType, file)
+        toast.success(`Documento "${docType}" enviado com sucesso`)
+      } catch (err) {
+        console.error("[v0] Upload error:", err)
+        toast.error("Erro ao enviar documento")
+      } finally {
+        setIsUploading(false)
+      }
     }
   }
 
@@ -54,7 +66,7 @@ function DocumentUploadCard({
           {existing ? (
             <p className="text-xs text-muted-foreground">{existing.fileName}</p>
           ) : (
-            <p className="text-xs text-muted-foreground">Não enviado</p>
+            <p className="text-xs text-muted-foreground">Nao enviado</p>
           )}
           {existing?.status === "rejected" && existing.reviewNote && (
             <p className="mt-1 text-xs text-destructive">Motivo: {existing.reviewNote}</p>
@@ -71,14 +83,16 @@ function DocumentUploadCard({
               className="hidden"
               accept=".pdf,.jpg,.jpeg,.png"
               onChange={handleFile}
+              disabled={isUploading}
             />
             <Button
               size="sm"
               variant={existing?.status === "rejected" ? "destructive" : "default"}
               onClick={() => inputRef.current?.click()}
+              disabled={isUploading}
             >
               <Upload className="mr-1 h-3 w-3" />
-              {existing?.status === "rejected" ? "Reenviar" : "Enviar"}
+              {isUploading ? "Enviando..." : existing?.status === "rejected" ? "Reenviar" : "Enviar"}
             </Button>
           </>
         )}
@@ -89,37 +103,92 @@ function DocumentUploadCard({
 
 export default function DocumentsPage() {
   const { user } = useAuth()
-  const store = useStore()
+  const [partner, setPartner] = useState<Partner | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
 
-  const partner = store.state.partners.find((p) => p.id === user?.id)
-  if (!partner) return null
-
-  const requiredDocs = getRequiredDocuments(partner.type, partner.mistaSubTypes)
-
-  const handleUpload = (docType: string, fileName: string) => {
-    const existingDoc = partner.documents.find((d) => d.type === docType)
-    if (existingDoc) {
-      store.updatePartner(partner.id, {
-        documents: partner.documents.map((d) =>
-          d.type === docType ? { ...d, fileName, status: "pending" as const, uploadedAt: new Date().toISOString(), reviewNote: undefined } : d
-        ),
-        documentsStatus: "pending",
-      })
-    } else {
-      store.addDocument({
-        partnerId: partner.id,
-        type: docType,
-        fileName,
-      })
+  useEffect(() => {
+    if (user?.id) {
+      fetchPartner()
     }
-    store.addLog({
-      userId: partner.id,
-      userType: "partner",
-      action: "Documento enviado",
-      details: `Documento "${docType}" enviado: ${fileName}`,
-    })
+  }, [user?.id])
+
+  const fetchPartner = async () => {
+    try {
+      const res = await fetch(`/api/partners/${user?.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setPartner(data)
+        console.log("[v0] Partner loaded:", data)
+      } else {
+        toast.error("Erro ao carregar dados do parceiro")
+      }
+    } catch (err) {
+      console.error("[v0] Error fetching partner:", err)
+      toast.error("Erro ao conectar com o servidor")
+    } finally {
+      setLoading(false)
+    }
   }
 
+  const handleUpload = async (docType: string, file: File) => {
+    if (!partner) return
+
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append("partnerId", partner.id)
+      formData.append("type", docType)
+      formData.append("fileName", file.name)
+
+      const res = await fetch("/api/documents", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (res.ok) {
+        await fetchPartner()
+        console.log("[v0] Document uploaded successfully")
+      } else {
+        const error = await res.json()
+        toast.error(error.error || "Erro ao enviar documento")
+      }
+    } catch (err) {
+      console.error("[v0] Upload error:", err)
+      throw err
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Documentos</h1>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-16" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!partner) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Documentos</h1>
+          <p className="text-muted-foreground">Erro ao carregar dados</p>
+        </div>
+      </div>
+    )
+  }
+
+  const requiredDocs = getRequiredDocuments(partner.type, partner.mistaSubTypes)
   const uploadedCount = partner.documents.length
   const approvedCount = partner.documents.filter((d) => d.status === "approved").length
 
@@ -156,6 +225,7 @@ export default function DocumentsPage() {
               docType={docType}
               existing={existing}
               onUpload={handleUpload}
+              uploading={uploading}
             />
           )
         })}
