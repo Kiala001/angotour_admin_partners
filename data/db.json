@@ -21,9 +21,50 @@
       "blocked": false
     }
   ],
-  "plans": [],
+  "plans": [
+    {
+      "id": "plan-monthly",
+      "name": "Mensal",
+      "durationDays": 30,
+      "price": 50000,
+      "currency": "AOA",
+      "paymentMethodIds": ["pm-mbway", "pm-banco"],
+      "active": true
+    },
+    {
+      "id": "plan-quarterly",
+      "name": "Trimestral",
+      "durationDays": 90,
+      "price": 135000,
+      "currency": "AOA",
+      "paymentMethodIds": ["pm-mbway", "pm-banco"],
+      "active": true
+    },
+    {
+      "id": "plan-annual",
+      "name": "Anual",
+      "durationDays": 365,
+      "price": 500000,
+      "currency": "AOA",
+      "paymentMethodIds": ["pm-mbway", "pm-banco"],
+      "active": true
+    }
+  ],
   "subscriptions": [],
-  "paymentMethods": [],
+  "paymentMethods": [
+    {
+      "id": "pm-mbway",
+      "name": "MB Way",
+      "details": "Transferência via MB Way",
+      "active": true
+    },
+    {
+      "id": "pm-banco",
+      "name": "Transferência Bancária",
+      "details": "Transferência para conta bancária",
+      "active": true
+    }
+  ],
   "services": [],
   "admins": [
     {
